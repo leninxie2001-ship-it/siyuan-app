@@ -40,6 +40,13 @@ service cloud.firestore {
     match /teachers/{id} {
       allow update: if isTeacher() && id == tid() && onlyChanges(['phone', 'wechat', 'email', 'languages', 'bio', 'photo', 'updatedAt', 'updatedBy']);
     }
+    // a teacher asks the office to cancel one of their sessions or find a substitute, and may withdraw it while it is open
+    match /requests/{id} {
+      allow read: if mine();
+      allow create: if staysMine() && request.resource.data.createdBy == request.auth.token.uname && request.resource.data.status == 'open'
+        && request.resource.data.kind in ['cancel', 'sub'] && request.resource.data.keys().hasOnly(['kind', 'reason', 'status', 'sessionId', 'courseId', 'date', 'start', 'end', 'label', 'teacherId', 'createdAt', 'createdBy']);
+      allow update: if mine() && resource.data.status == 'open' && request.resource.data.status == 'withdrawn' && onlyChanges(['status', 'updatedAt']);
+    }
     // and add or remove students in their own classes, nothing else about the class
     match /courses/{id} {
       allow update: if mine() && onlyChanges(['studentIds', 'updatedAt', 'updatedBy']);
