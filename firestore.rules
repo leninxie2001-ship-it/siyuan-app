@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // who you are comes from the claims the server functions put on your sign-in: role, uname, active
+    function signedIn() { return request.auth != null && request.auth.token.active == true && request.auth.token.role in ['owner', 'staff', 'edu']; }
+    function seesMoney() { return signedIn() && request.auth.token.role in ['owner', 'staff']; }
+    function isOwner() { return signedIn() && request.auth.token.role == 'owner'; }
+
+    // only says whether the first owner has been made, so the sign-in page knows which form to show
+    match /meta/{doc} { allow read: if true; allow write: if false; }
+
+    match /accounts/{uname} {
+      allow read: if signedIn();
+      allow create, delete: if isOwner();
+      // the owner edits accounts; anyone may stamp their own last sign-in
+      allow update: if isOwner() || (signedIn() && request.auth.token.uname == uname && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt']));
+    }
+    // 教务 accounts never read or write money
+    match /payments/{doc} { allow read, write: if seesMoney(); }
+    match /vault/{doc} { allow read, write: if signedIn() && request.auth.token.uname in ['shanghen10', 'susi']; }
+
+    match /{col}/{doc} {
+      allow read, write: if signedIn() && !(col in ['meta', 'accounts', 'payments', 'vault']);
+    }
+  }
+}
