@@ -195,6 +195,26 @@ html.fb [data-gsimport], html.fb [data-regimport], html.fb [data-webpull] { disp
 .pdft small { color: var(--muted); font-size: 10px; line-height: 1.25; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .private { background: var(--amber-soft); border-radius: 6px; padding: 10px 12px; display: grid; gap: 4px }
 .private h3 { color: var(--amber) }
+/* teacher portal: attendance photos and rows, grade sheet */
+.pill.attmiss { background: var(--seal-soft); color: var(--seal) }
+.attline { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center }
+.attline .thumbs a, .attline .thumbs .th { width: 48px; height: 48px }
+.th.attnone { display: grid !important; place-items: center; font-size: 11px; color: var(--muted); border-style: dashed !important }
+.attphs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
+.attph { display: grid; gap: 6px; align-content: start; justify-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px }
+.attph a { display: block; width: 100%; aspect-ratio: 4 / 3; border-radius: 6px; overflow: hidden; background: var(--sunken) }
+.attph img { width: 100%; height: 100%; object-fit: cover; display: block }
+.attph0 { width: 100%; aspect-ratio: 4 / 3; border: 1px dashed var(--line); border-radius: 6px; display: grid; place-items: center; text-align: center; padding: 8px; color: var(--muted); font-size: 13px }
+.attph label.busy { opacity: .6; pointer-events: none }
+.attlist { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden }
+.attstu { display: grid; grid-template-columns: minmax(150px, 1.3fr) auto 7em minmax(90px, 1fr); gap: 8px 10px; align-items: center; padding: 8px 10px; background: var(--surface); border-top: 1px solid var(--line) }
+.attstu:first-child { border-top: 0 }
+.attseg button { padding: 6px 10px; font-size: 13px }
+.attseg button[data-st="a"][aria-pressed="true"] { background: var(--seal); color: #fff }
+.attseg button[data-st="l"][aria-pressed="true"], .attseg button[data-st="x"][aria-pressed="true"] { background: var(--amber); color: #fff }
+.gtab input { width: 5.5em } .gtab td:last-child input { width: 12em }
+.gtab .gx { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 14px } .gtab .gx:hover { color: var(--seal) }
+@media (max-width: 640px) { .attphs { grid-template-columns: 1fr 1fr; gap: 8px } .attph { padding: 8px } .attstu { grid-template-columns: 1fr 1fr } .attstu > span:first-child { grid-column: 1 / -1 } .attseg { grid-column: 1 / -1; width: 100% } .attseg button { flex: 1 } .attline { grid-template-columns: 1fr } }
 /* sheet */
 .overlay { position: fixed; inset: 0; background: rgba(10,20,17,.45); display: flex; justify-content: center; align-items: flex-start; overflow-y: auto; z-index: 20; padding: max(24px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 24px max(12px, env(safe-area-inset-left, 0px)) }
 .sheet { background: var(--bg); border-radius: 10px; width: min(860px, 100%); padding: 18px; display: grid; gap: 14px; box-shadow: 0 10px 40px rgba(0,0,0,.25) }
@@ -407,7 +427,7 @@ const ALERT_DAYS = 30;
 const LEVELS = [...Array.from({ length: 18 }, (_, i) => `Nivel ${i + 1}`), ...Array.from({ length: 6 }, (_, i) => [`HSK ${i + 1}`, `HSK ${i + 1} (individual)`]).flat(), "Curso de niños", "Curso de niños nativos", "Clases particulares"];
 // Firebase build: fb.js sets window.__FB (login, storage URLs, account functions); the claude.ai build leaves it unset
 const FB = window.__FB || null;
-const S = { db: null, assets: null, downloads: null, students: [], payments: [], classes: [], courses: [], rooms: [], holidays: [], tab: "home", q: "", stFilter: "active", weekStart: null, scores: [], groups: [], items: [], loans: [], flyer: [], leads: [], families: [], zoom: [], ready: { z: false, m: false, e: false, a: false, g: false, i: false, o: false, f: false, x: false, s: false, p: false, c: false, t: false, l: false, k: false, r: false, h: false }, accounts: [], acct: null, okKeys: new Set(), fails: 0, lockUntil: 0, teachers: [], locations: [], loc: "", tchF: "", readOnly: false, lang: "zh" };
+const S = { db: null, assets: null, downloads: null, students: [], payments: [], classes: [], courses: [], rooms: [], holidays: [], tab: "home", q: "", stFilter: "active", weekStart: null, scores: [], groups: [], items: [], loans: [], flyer: [], leads: [], families: [], zoom: [], attendance: [], grades: [], ready: { at: false, gr: false, z: false, m: false, e: false, a: false, g: false, i: false, o: false, f: false, x: false, s: false, p: false, c: false, t: false, l: false, k: false, r: false, h: false }, accounts: [], acct: null, okKeys: new Set(), fails: 0, lockUntil: 0, teachers: [], locations: [], loc: "", tchF: "", readOnly: false, lang: "zh" };
 
 /* ---------- language ---------- */
 const ES = {
@@ -764,9 +784,9 @@ function renderChrome() {
   $("#brandname").textContent = L("思源中文学校");
   $("#brandsub").textContent = L("内部管理 · Uso interno");
   const n = alerts().length;
-  const tabs = S.acct ? [["home", "首页提醒"], ["students", "学生"], ["schedule", "课程安排"], ["teachers", "教师课表"], ["groups", "班级总表"], ["flyer", "开课信息"], ["leads", "意向登记"], ...(noPay() ? [] : [["payments", "付款记录"], ["receipts", "收据"]]), ["loans", "物品借用"], ["staff", "老师和教学点"], ["zoom", "Zoom 使用"], ...(canVault() ? [["vault", "账号密码"]] : [])] : [];
+  const tabs = S.acct && isTch() ? [["my", "我的课表"], ["att", "考勤"], ["grades", "成绩"], ["mystu", "我的学生"], ["zoom", "Zoom 使用"]] : S.acct ? [["home", "首页提醒"], ["students", "学生"], ["schedule", "课程安排"], ["teachers", "教师课表"], ["groups", "班级总表"], ["tatt", "老师考勤"], ["flyer", "开课信息"], ["leads", "意向登记"], ...(noPay() ? [] : [["payments", "付款记录"], ["receipts", "收据"]]), ["loans", "物品借用"], ["staff", "老师和教学点"], ["zoom", "Zoom 使用"], ...(canVault() ? [["vault", "账号密码"]] : [])] : [];
   $("#tabs").innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" aria-current="${S.tab === k}">${L(l)}${k === "home" && n ? `<span class="count">${n}</span>` : ""}${k === "leads" && leadDue().length ? `<span class="count">${leadDue().length}</span>` : ""}${k === "loans" && dueLoans().length ? `<span class="count">${dueLoans().length}</span>` : ""}</button>`).join("")
-    + (S.acct && S.locations.length ? `<select id="locpick" aria-label="${L("教学点")}" style="width:auto;margin-left:6px"><option value="">${L("全部教学点")}</option>${S.locations.slice().sort(byLoc).map(l => `<option value="${l.id}" ${S.loc === l.id ? "selected" : ""}>${esc(lname(l))}</option>`).join("")}</select>` : "")
+    + (S.acct && !isTch() && S.locations.length ? `<select id="locpick" aria-label="${L("教学点")}" style="width:auto;margin-left:6px"><option value="">${L("全部教学点")}</option>${S.locations.slice().sort(byLoc).map(l => `<option value="${l.id}" ${S.loc === l.id ? "selected" : ""}>${esc(lname(l))}</option>`).join("")}</select>` : "")
     + `<span class="lang" role="group" aria-label="Language"><button data-lang="zh" aria-pressed="${S.lang === "zh"}">中文</button><button data-lang="es" aria-pressed="${S.lang === "es"}">Español</button></span>`
     + (S.acct ? `<button class="acctbtn" data-me title="${L("我的账号")}">${esc(S.acct.name || S.acct.id)}</button>` : "");
 }
@@ -777,7 +797,7 @@ function splashReady() { if (splash.ready) return; splash.ready = true; setTimeo
 addEventListener("keydown", e => { if (e.key === "Escape") closeSplash(); });
 setTimeout(closeSplash, 20000);
 /* ---------- staff accounts: a sign-in gate in front of the app; passwords are stored only as salted PBKDF2-SHA256 hashes ---------- */
-const ROLES = { owner: "总管理员", staff: "管理人员", edu: "教务（看不到付款）" };
+const ROLES = { owner: "总管理员", staff: "管理人员", edu: "教务（看不到付款）", teacher: "老师（只看自己的课）" };
 const PW_ITER = 150000;
 const b64 = u8 => btoa(String.fromCharCode(...u8));
 const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -825,7 +845,11 @@ function pbkdf2js(P, Sa, iter) {
 const acctKey = a => `${a.id}|${(a.hash || "").slice(0, 12)}`;
 const isOwner = () => S.acct?.role === "owner" && S.acct.active !== false;
 // 教务 accounts (director, teachers) work on students and classes but never see money: payments are not even read for them
-const noPay = () => S.acct?.role === "edu";
+const noPay = () => S.acct?.role === "edu" || S.acct?.role === "teacher";
+// 老师 accounts are tied to one name in the teacher list (tid on the sign-in) and get the teacher portal instead of the office tabs
+const isTch = () => S.acct?.role === "teacher";
+const myTid = () => (FB ? FB.claims?.tid : null) || S.acct?.teacherId || "";
+const T_TABS = ["my", "att", "grades", "mystu", "zoom"];
 function payGate() {
   if (!S.db || !S.paySub) return;
   const want = !!S.acct && !noPay();
@@ -944,7 +968,7 @@ function viewAccounts() {
   return `<section class="panel" id="acctpanel">
     <div class="row"><h2>${L("管理人员账号")}</h2><span class="muted">${L("只有总管理员能看到这一栏")}</span><span class="spacer"></span><button class="btn primary" data-act="newacct">${L("＋ 添加账号")}</button></div>
     <div class="tablewrap"><table><thead><tr><th>${L("用户名")}</th><th>${L("名字")}</th><th>${L("权限")}</th><th>${L("改成绩")}</th><th>${L("最近登录")}</th><th>${L("状态")}</th></tr></thead><tbody>
-    ${rows.map(a => `<tr class="click" data-acct="${esc(a.id)}"><td class="nm"><b>${esc(a.id)}</b>${a.id === S.acct.id ? ` <span class="muted">· ${L("你")}</span>` : ""}</td><td>${esc(a.name || "")}</td><td><span class="pill ${a.role === "owner" ? "st-上课中" : "st-试听"}">${L(ROLES[a.role] || a.role)}</span></td><td>${a.role === "owner" || a.scores ? "✓" : '<span class="muted">—</span>'}</td><td>${a.lastLoginAt ? esc(fmtTime(a.lastLoginAt)) : "—"}</td><td>${a.active === false ? `<span class="pill st-不上课了">${L("停用")}</span>` : `<span class="pill st-上课中">${L("在用")}</span>`}</td></tr>`).join("")}
+    ${rows.map(a => `<tr class="click" data-acct="${esc(a.id)}"><td class="nm"><b>${esc(a.id)}</b>${a.id === S.acct.id ? ` <span class="muted">· ${L("你")}</span>` : ""}</td><td>${esc(a.name || "")}</td><td><span class="pill ${a.role === "owner" ? "st-上课中" : "st-试听"}">${L(ROLES[a.role] || a.role)}</span>${a.role === "teacher" ? ` <span class="muted" style="font-size:12px">${esc(tdisp(tch(a.teacherId)) || L("未连到老师"))}</span>` : ""}</td><td>${a.role === "owner" || a.scores ? "✓" : '<span class="muted">—</span>'}</td><td>${a.lastLoginAt ? esc(fmtTime(a.lastLoginAt)) : "—"}</td><td>${a.active === false ? `<span class="pill st-不上课了">${L("停用")}</span>` : `<span class="pill st-上课中">${L("在用")}</span>`}</td></tr>`).join("")}
     </tbody></table></div>
     <p class="muted" style="margin:0;font-size:12.5px">${L("总管理员可以添加、修改、停用账号；管理人员能用其他所有功能，但看不到这一栏。")}</p>
   </section>`;
@@ -958,7 +982,9 @@ function accountForm(a) {
       <label class="f">${L("用户名")}<input name="u" value="${esc(a.id || "")}" ${isNew ? "" : "readonly"} autocomplete="off" autocapitalize="none" spellcheck="false"></label>
       <label class="f">${L("名字")}<input name="name" value="${esc(a.name || "")}"></label>
       <label class="f">${L("权限")}<select name="role" ${self ? "disabled" : ""}>${Object.keys(ROLES).map(r => `<option value="${r}" ${a.role === r ? "selected" : ""}>${L(ROLES[r])}</option>`).join("")}</select></label>
+      <label class="f" id="acteach" ${a.role === "teacher" ? "" : "hidden"}>${L("是哪位老师")}<select name="teacherId"><option value="">${L("选择老师")}</option>${S.teachers.filter(t => t.active !== false || t.id === a.teacherId).sort(byName).map(t => `<option value="${t.id}" ${a.teacherId === t.id ? "selected" : ""}>${esc(tboth(t))}</option>`).join("")}</select></label>
     </div>
+    <p class="muted" id="acteachp" style="margin:0;font-size:12.5px" ${a.role === "teacher" ? "" : "hidden"}>${L("老师账号只能看到自己的课、学生、考勤和成绩，看不到付款和其他页面。")}</p>
     <div class="grid2">
       <label class="f">${L(isNew ? "密码" : "新密码（不改就留空）")}<input name="pw" type="password" autocomplete="new-password"></label>
       <label class="f">${L("再输入一次密码")}<input name="pw2" type="password" autocomplete="new-password"></label>
@@ -969,6 +995,7 @@ function accountForm(a) {
     <p class="login-err" id="acmsg" role="alert"></p>
     ${isNew || self ? "" : `<div class="row"><span class="spacer"></span><button type="button" class="btn small danger" data-del>${L("删除这个账号")}</button></div>`}
   </form>`, true);
+  el.querySelector("[name=role]").addEventListener("change", e => { const on = e.target.value === "teacher"; $("#acteach", el).hidden = !on; $("#acteachp", el).hidden = !on; });
   el.addEventListener("click", e => {
     if (e.target.closest("[data-close]")) closeSheet();
     if (e.target.closest("[data-del]")) confirmBox(L("删除这个账号"), L("删除 {0}？删除后这个账号不能再登录。", a.id), async () => { if (FB) await FB.call("deleteAccount", { uname: a.id }); else await remove("accounts", a.id); closeSheet(); toast(L("已删除")); });
@@ -981,11 +1008,13 @@ function accountForm(a) {
     if (isNew && S.accounts.some(x => x.id === id)) return say(L("这个用户名已经有了。"));
     if (isNew || pw) { const bad = pwProblem(pw, String(fd.get("pw2"))); if (bad) return say(bad); }
     if (!S.accounts.some(x => x.id !== id && x.role === "owner" && x.active !== false) && !(role === "owner" && active)) return say(L("至少要保留一个在用的总管理员。"));
+    const teacherId = role === "teacher" ? fd.get("teacherId") || "" : "";
+    if (role === "teacher" && !teacherId) return say(L("请选择这个账号对应的老师"));
     btn.disabled = true;
-    const now = new Date().toISOString(), d = { name: String(fd.get("name")).trim() || id, role, active, scores: role === "owner" || fd.get("scores") === "1", updatedAt: now };
+    const now = new Date().toISOString(), d = { name: String(fd.get("name")).trim() || id, role, active, scores: role === "owner" || (role !== "teacher" && fd.get("scores") === "1"), teacherId, updatedAt: now };
     if (FB) {
       // accounts live in Firebase Authentication; the server function sets the password, role and on/off
-      try { await FB.call("saveAccount", { uname: id, isNew, name: d.name, role, active, scores: d.scores, pw: pw || null }); closeSheet(); toast(L("已保存")); }
+      try { await FB.call("saveAccount", { uname: id, isNew, name: d.name, role, active, scores: d.scores, teacherId: teacherId || null, pw: pw || null }); closeSheet(); toast(L("已保存")); }
       catch (err) { btn.disabled = false; say(L("保存失败：{0}", err?.message || err?.code || err)); }
       return;
     }
@@ -998,6 +1027,7 @@ function accountForm(a) {
   });
 }
 function render() {
+  if (isTch() && !T_TABS.includes(S.tab)) S.tab = "my";
   vaultSync(); payGate();
   renderChrome();
   // typing in the flyer editor: redraw only its preview, so the text box keeps focus
@@ -1011,10 +1041,11 @@ function render() {
     if (view !== v) { const u = $("#lg-user")?.value; m.innerHTML = viewLogin(); if (u && $("#lg-user")) $("#lg-user").value = u; }
     m.dataset.view = v; splashReady(); return;
   }
-  if (!(S.ready.s && S.ready.g && S.ready.i && S.ready.o && S.ready.f && S.ready.e && S.ready.x && S.ready.p && S.ready.c && S.ready.t && S.ready.l && S.ready.k && S.ready.r && S.ready.h)) { m.innerHTML = `<div class="empty">${L("正在加载数据……")}</div>`; return; }
+  if (!(S.ready.s && S.ready.g && S.ready.i && S.ready.o && S.ready.f && S.ready.e && S.ready.x && S.ready.p && S.ready.c && S.ready.t && S.ready.l && S.ready.k && S.ready.r && S.ready.h && S.ready.at && S.ready.gr)) { m.innerHTML = `<div class="empty">${L("正在加载数据……")}</div>`; return; }
   splashReady();
   const ro = S.readOnly ? `<div class="banner">${L("你目前是查看权限，只能看，不能修改。需要修改请让管理员把你设为编辑者。")}</div>` : "";
-  m.innerHTML = ro + ({ home: viewHome, students: viewStudents, schedule: viewSchedule, teachers: viewTT, groups: viewGroups, loans: viewLoans, flyer: viewFlyer, leads: viewLeads, payments: noPay() ? viewHome : viewPayments, receipts: noPay() ? viewHome : viewReceipts, staff: viewStaff, zoom: viewZoom, vault: () => canVault() ? viewVault() : viewHome() }[S.tab] || viewHome)();
+  if (isTch()) { m.innerHTML = ro + ({ my: viewMy, att: () => viewAtt(myTid()), grades: () => viewGradeList(myTid()), mystu: viewMyStudents, zoom: viewZoom }[S.tab] || viewMy)(); return; }
+  m.innerHTML = ro + ({ tatt: viewTAtt, home: viewHome, students: viewStudents, schedule: viewSchedule, teachers: viewTT, groups: viewGroups, loans: viewLoans, flyer: viewFlyer, leads: viewLeads, payments: noPay() ? viewHome : viewPayments, receipts: noPay() ? viewHome : viewReceipts, staff: viewStaff, zoom: viewZoom, vault: () => canVault() ? viewVault() : viewHome() }[S.tab] || viewHome)();
   if (S.tab === "students") { const i = $("#q"); if (i && S._focusQ) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } S._focusQ = false; }
 }
 
@@ -2116,9 +2147,9 @@ function famForm(f, preset) {
 }
 
 /* ---------- 备份：把数据库里所有资料读一遍，存成一个 Excel（一个集合一张表），每天提醒下载一次 ---------- */
-const BAK_COLS = ["students", "payments", "courses", "classes", "teachers", "locations", "rooms", "holidays", "scores", "groups", "families", "leads", "items", "loans", "flyer", "zoom", "accounts"];
+const BAK_COLS = ["students", "payments", "courses", "classes", "teachers", "locations", "rooms", "holidays", "scores", "groups", "families", "leads", "items", "loans", "flyer", "zoom", "attendance", "grades", "accounts"];
 // collections that can pass 1000 documents are read in yearly windows of their date field
-const BAK_DATE = { payments: "date", classes: "date" };
+const BAK_DATE = { payments: "date", classes: "date", attendance: "date" };
 const bakDoc = () => S.flyer.find(x => x.id === "backup") || {};
 const bakWhen = at => { const d = new Date(at); return isNaN(d) ? "" : ymd(d) + " " + d.toTimeString().slice(0, 5); };
 const bakDue = () => !S.readOnly && bakWhen(bakDoc().at || "").slice(0, 10) !== today();
@@ -2232,15 +2263,16 @@ function viewZoom() {
     ${accts.length ? (v === "week" ? zoomWeek(accts, bad, show) : zoomDay(accts, d, bad, show)) : `<div class="empty">${L("还没有记录。点“＋ 添加使用时段”开始。")}</div>`}</section>`;
 }
 function zoomForm(z, pre) {
-  const isNew = !z; z = z || { account: "", days: [], start: "", end: "", ...(pre || {}) };
-  const ds = zDays(z), tl = S.teachers.filter(t => t.active !== false || t.id === z.teacherId).sort(byName);
+  if (isTch() && z && z.teacherId !== myTid()) return toast(L("只能修改自己的时段"));
+  const isNew = !z; z = z || { account: "", days: [], start: "", end: "", ...(pre || {}), ...(isTch() ? { teacherId: myTid() } : {}) };
+  const ds = zDays(z), tl = S.teachers.filter(t => isTch() ? t.id === myTid() : t.active !== false || t.id === z.teacherId).sort(byName);
   const courses = [...new Set(S.courses.map(cname).filter(Boolean))].sort();
   const el = openSheet(`<form id="zoomform" style="display:grid;gap:12px">
     <div class="row"><h2>${L(isNew ? "添加使用时段" : "修改使用时段")}</h2><span class="spacer"></span><button type="button" class="btn" data-close>${L("取消")}</button><button class="btn primary">${L("保存")}</button></div>
     <label class="f">${L("Zoom 账号")}<input name="account" list="zacl" value="${esc(z.account)}" placeholder="siyuanchina.a@gmail.com" autocomplete="off"><datalist id="zacl">${zAccounts().map(a => `<option value="${esc(a)}">`).join("")}</datalist></label>
     <div class="grid2">
-      <label class="f">${L("老师")}<select name="teacherId"><option value="">${L("其他（自己填名字）")}</option>${tl.map(t => `<option value="${t.id}" ${z.teacherId === t.id ? "selected" : ""}>${esc(tdisp(t))}</option>`).join("")}</select></label>
-      <label class="f">${L("老师名字")}<input name="teacherName" value="${esc(z.teacherId ? "" : z.teacherName || "")}" placeholder="${L("列表里没有时填")}"></label>
+      <label class="f">${L("老师")}<select name="teacherId">${isTch() ? "" : `<option value="">${L("其他（自己填名字）")}</option>`}${tl.map(t => `<option value="${t.id}" ${z.teacherId === t.id ? "selected" : ""}>${esc(tdisp(t))}</option>`).join("")}</select></label>
+      ${isTch() ? "" : `<label class="f">${L("老师名字")}<input name="teacherName" value="${esc(z.teacherId ? "" : z.teacherName || "")}" placeholder="${L("列表里没有时填")}"></label>`}
     </div>
     <label class="f">${L("课程 / 班级")}<input name="course" list="zcl" value="${esc(z.course || "")}" placeholder="Nivel 1、HSK4…"><datalist id="zcl">${courses.map(c => `<option value="${esc(c)}">`).join("")}</datalist></label>
     <div class="f">${L("每周哪几天")}<div class="row" style="gap:10px;flex-wrap:wrap">${WDN.map((w, i) => `<label class="row" style="gap:4px"><input type="checkbox" name="d" value="${i + 1}" ${ds.includes(i + 1) ? "checked" : ""} style="width:auto"> ${L(w)}</label>`).join("")}</div></div>
@@ -2256,7 +2288,7 @@ function zoomForm(z, pre) {
   });
   $("#zoomform", el).addEventListener("submit", async e => {
     e.preventDefault(); const fd = new FormData(e.target), tid = fd.get("teacherId");
-    const d = { account: fd.get("account").trim(), teacherId: tid, teacherName: tid ? (tch(tid)?.name || "") : fd.get("teacherName").trim(), course: fd.get("course").trim(), days: fd.getAll("d").map(Number), start: fd.get("start"), end: fd.get("end"), note: fd.get("note").trim(), order: z.order ?? S.zoom.reduce((m, x) => Math.max(m, x.order || 0), 0) + 1 };
+    const d = { account: fd.get("account").trim(), teacherId: tid, teacherName: tid ? (tch(tid)?.name || "") : (fd.get("teacherName") || "").trim(), course: fd.get("course").trim(), days: fd.getAll("d").map(Number), start: fd.get("start"), end: fd.get("end"), note: fd.get("note").trim(), order: z.order ?? S.zoom.reduce((m, x) => Math.max(m, x.order || 0), 0) + 1 };
     if (!d.account) return toast(L("请填写 Zoom 账号"));
     if (!d.days.length) return toast(L("请选择星期几"));
     if (!d.start || !d.end) return toast(L("请把时间填完整"));
@@ -3559,6 +3591,297 @@ const loadPdfLib = () => _pdfLib ||= new Promise((ok, no) => {
   document.head.appendChild(sc);
 });
 
+/* ---------- 老师端：我的课表、考勤（上课和下课照片，每个学生到没到、作业分）、成绩单、我的学生；管理端在“老师考勤”里看所有老师 ---------- */
+const ATT_ST = [["p", "到"], ["l", "迟到"], ["a", "缺课"], ["x", "请假"]];
+const GRADE_COLS = [{ id: "mw", name: "期中笔试", max: 100 }, { id: "mo", name: "期中口语", max: 100 }, { id: "fw", name: "期末笔试", max: 100 }, { id: "fo", name: "期末口语", max: 100 }];
+let _am = null, _amSrc = null;
+const attOf = id => { if (_amSrc !== S.attendance) { _amSrc = S.attendance; _am = new Map(S.attendance.map(a => [a.id, a])); } return _am.get(id); };
+const byStart = (a, b) => (a.date || "").localeCompare(b.date || "") || (a.start || "").localeCompare(b.start || "");
+// a teacher's sessions: everything in the timetable taught by them (one-day substitutions included)
+const sessOf = tid => CL().filter(c => !tid || c.teacherId === tid);
+const tLabel = c => { const n = tname(c); return n ? (/老师$/.test(n) && S.lang === "zh" ? n : L("{0}老师", n)) : L("未定老师"); };
+// what is still missing from a session's attendance
+function attMissing(c) {
+  const a = attOf(c.id) || {}, out = [];
+  if (!a.photoStart) out.push("上课照片");
+  if (!a.photoEnd) out.push("下课照片");
+  if ((c.studentIds || []).some(id => !a.marks?.[id]?.st)) out.push("学生考勤");
+  return out;
+}
+function attPill(c) {
+  if (c.date > today()) return "";
+  const miss = attMissing(c);
+  if (!miss.length) return `<span class="pill st-上课中">✓ ${L("考勤完成")}</span>`;
+  return `<span class="pill ${attOf(c.id) ? "st-待排课" : "attmiss"}">${esc(L("缺：{0}", miss.map(x => L(x)).join(S.lang === "es" ? ", " : "、")))}</span>`;
+}
+function attCount(c) {
+  const a = attOf(c.id); if (!a) return "";
+  return ATT_ST.map(([k, l]) => { const n = (c.studentIds || []).filter(id => a.marks?.[id]?.st === k).length; return n ? `${L(l)} ${n}` : ""; }).filter(Boolean).join(" · ");
+}
+function tSessCard(c, withT) {
+  const n = (c.studentIds || []).length, cnt = attCount(c), loc = locOf(c.locationId);
+  return `<div class="cls${tcStyle(c)}" data-att="${esc(c.id)}" tabindex="0"><span class="t">${esc(c.start || "")}${c.end ? "–" + esc(c.end) : ""} · ${esc(cname(c) || L("课程"))}${withT ? ` · ${esc(tLabel(c))}` : ""}${loc ? ` · ${esc(lname(loc))}` : ""}${roomName(c) ? ` · ${esc(roomName(c))}` : ""}</span><span class="s">${esc(L("{0} 名学生", n))}${cnt ? " · " + esc(cnt) : ""} ${attPill(c)}</span></div>`;
+}
+const attThumbs = a => ["photoStart", "photoEnd"].map(k => a?.[k] ? `<a href="${blobUrl(a[k])}" target="_blank" rel="noopener" data-lb="${a[k]}" data-lbcap="${esc(L(k === "photoStart" ? "上课照片" : "下课照片"))}" title="${esc(L(k === "photoStart" ? "上课照片" : "下课照片") + " · " + fmtTime(a[k + "At"]))}"><img src="${blobUrl(a[k])}" alt=""></a>` : `<span class="th attnone" title="${esc(L(k === "photoStart" ? "上课照片" : "下课照片"))}">${L(k === "photoStart" ? "上课" : "下课")}</span>`).join("");
+
+/* the teacher's own classes, grouped into 班级: one per course, repeating series or one-off class, per teacher */
+const gkey = c => c.courseId || c.seriesId || "c_" + c.id;
+let _gs = null, _gsSrc = null;
+function groupsOf(tid) {
+  if (_gsSrc !== CL()) { _gsSrc = CL(); _gs = {}; }
+  if (_gs[tid || ""]) return _gs[tid || ""];
+  const m = new Map();
+  for (const c of sessOf(tid)) {
+    const id = gkey(c) + "_" + (c.teacherId || "x");
+    let g = m.get(id); if (!g) m.set(id, g = { id, key: gkey(c), teacherId: c.teacherId || "", courseId: c.courseId || "", sess: [], sids: new Set() });
+    g.sess.push(c); (c.studentIds || []).forEach(x => g.sids.add(x));
+  }
+  const t = today();
+  for (const g of m.values()) {
+    g.sess.sort(byStart); g.first = g.sess[0]; g.last = g.sess[g.sess.length - 1];
+    g.k = g.courseId ? S.courses.find(k => k.id === g.courseId) : null;
+    g.label = cname(g.k || g.first) || L("课程");
+    g.when = g.k ? slotText(g.k) : g.sess.length === 1 ? `${g.first.date} ${g.first.start || ""}` : `${g.first.date} – ${g.last.date}`;
+    g.on = g.last.date >= t;
+    g.done = g.sess.filter(c => c.date <= t).length;
+  }
+  return _gs[tid || ""] = [...m.values()].sort((a, b) => b.on - a.on || (b.on ? a.first.date.localeCompare(b.first.date) : b.last.date.localeCompare(a.last.date)) || a.label.localeCompare(b.label));
+}
+const gradeGroup = id => groupsOf("").find(g => g.id === id);
+const gradeDoc = g => S.grades.find(x => x.id === g.id);
+function stuStats(sess, sid) {
+  let rec = 0, here = 0, hs = 0, hn = 0;
+  for (const c of sess) {
+    const a = attOf(c.id), m = a?.marks?.[sid]; if (!m?.st) continue;
+    rec++; if (m.st === "p" || m.st === "l") here++;
+    if (m.hw != null && m.hw !== "" && +a.hwTotal > 0) { hs += +m.hw / +a.hwTotal * 100; hn++; }
+  }
+  return { rec, here, hw: hn ? hs / hn : null };
+}
+
+function viewMy() {
+  const tid = myTid(); if (!tid) return `<div class="banner">${L("这个老师账号还没有连到老师名单，请联系总管理员。")}</div>`;
+  const t = today(); if (!S.weekStart) S.weekStart = mondayOf(t);
+  const days = [...Array(7)].map((_, i) => addDays(S.weekStart, i)), mine = sessOf(tid), me = tch(tid);
+  const now = mine.filter(c => c.date === t).sort(byStart);
+  const todo = mine.filter(c => c.date < t && c.date >= addDays(t, -30) && attMissing(c).length).length;
+  return `<section class="panel">
+    <div class="row"><h2>${esc(L("{0}，你好", tdisp(me) ? L("{0}老师", tdisp(me)) : L("老师")))}</h2><span class="muted">${esc(t)} ${esc(wd(t))}</span></div>
+    ${todo ? `<div class="banner row" style="margin:0"><span>${esc(L("最近 30 天还有 {0} 节课的考勤没填完。", todo))}</span><span class="spacer"></span><button class="btn small primary" data-tab="att">${L("去填考勤")}</button></div>` : ""}
+    <h3>${L("今天的课")}</h3>
+    <div class="clslist">${now.map(c => tSessCard(c)).join("") || `<span class="muted">${L("今天没有课")}</span>`}</div>
+    <p class="muted" style="margin:0;font-size:12.5px">${L("点一节课就能登记考勤：上课时拍一张照片，下课时再拍一张，再给每个学生点到、填作业分。")}</p>
+  </section>
+  <section class="panel">
+    <div class="row"><h2>${L("我的课表")}</h2><span class="muted">${L("{0} 至 {1}", days[0], days[6])}</span><span class="spacer"></span>
+      <button class="btn" data-week="-7">${L("‹ 上周")}</button><button class="btn" data-week="0">${L("本周")}</button><button class="btn" data-week="7">${L("下周 ›")}</button></div>
+    <div>${days.map(d => { const cs = mine.filter(c => c.date === d).sort(byStart), h = holidayOn(d); return `
+      <div class="day ${d === t ? "today" : ""}"><div class="d">${wd(d)}<small>${d.slice(5)}</small>${h ? `<small class="holname${h.off ? "" : " open"}">${esc(h.name)}</small>` : ""}</div>
+      <div class="clslist">${cs.map(c => tSessCard(c)).join("") || `<span class="muted">—</span>`}</div></div>`; }).join("")}</div>
+  </section>
+  ${groupPanel(groupsOf(tid).filter(g => g.on || g.last.date >= addDays(t, -30)), "我的班级", false)}`;
+}
+
+function groupPanel(gs, title, withT) {
+  return `<section class="panel"><div class="row"><h2>${L(title)}</h2><span class="muted">${esc(L("{0} 个班", gs.length))}</span></div>
+    ${gs.length ? `<div class="tablewrap"><table><thead><tr><th>${L("班级")}</th>${withT ? `<th>${L("老师")}</th>` : ""}<th>${L("上课时间")}</th><th>${L("教学点")}</th><th>${L("学生")}</th><th>${L("已上")}</th><th>${L("成绩单")}</th></tr></thead><tbody>
+    ${gs.map(g => { const gd = gradeDoc(g), filled = gd ? Object.values(gd.vals || {}).filter(v => Object.values(v || {}).some(x => x !== null && x !== "")).length : 0; return `<tr class="click" data-grade="${esc(g.id)}"><td class="nm"><b>${esc(g.label)}</b>${g.on ? "" : ` <span class="pill st-暂停">${L("已结束")}</span>`}</td>${withT ? `<td>${esc(tLabel(g.first))}</td>` : ""}<td>${esc(g.when)}</td><td>${esc(lname(locOf(g.first.locationId)) || "—")}${roomName(g.first) ? ` · ${esc(roomName(g.first))}` : ""}</td><td>${g.sids.size}</td><td>${esc(L("{0} / {1} 节", g.done, g.sess.length))}</td><td>${filled ? `<span class="pill st-上课中">${esc(L("已填 {0} 人", filled))}</span>` : `<span class="muted">${L("还没填")}</span>`}</td></tr>`; }).join("")}
+    </tbody></table></div>` : `<div class="empty">${L("还没有班级")}</div>`}
+    <p class="muted" style="margin:0;font-size:12.5px">${L("点一个班打开成绩单：期中、期末的笔试和口语，还可以自己加列。出勤和作业平均分会从考勤里自动算。")}</p>
+  </section>`;
+}
+const viewGradeList = tid => tid ? groupPanel(groupsOf(tid), "成绩", false) : `<div class="banner">${L("这个老师账号还没有连到老师名单，请联系总管理员。")}</div>`;
+
+// attendance list: past and today's sessions, newest first; "没填完" shows only the ones still missing something
+function viewAtt(tid, withT) {
+  if (isTch() && !tid) return `<div class="banner">${L("这个老师账号还没有连到老师名单，请联系总管理员。")}</div>`;
+  const t = today(), span = (withT ? 14 : 60) + (S.attN || 0), from = addDays(t, -span), f = S.attF || "all";
+  const all = sessOf(tid).filter(c => c.date <= t && c.date >= from), list = (f === "todo" ? all.filter(c => attMissing(c).length) : all).sort((a, b) => byStart(b, a));
+  const todo = all.filter(c => attMissing(c).length).length, dates = [...new Set(list.map(c => c.date))];
+  return `<section class="panel">
+    <div class="row"><h2>${L("考勤")}</h2><span class="muted">${esc(L("最近 {0} 天", span))}</span><span class="spacer"></span>
+      <div class="payseg" role="group"><button type="button" data-attf="all" aria-pressed="${f === "all"}">${L("全部")} <span class="muted">${all.length}</span></button><button type="button" data-attf="todo" aria-pressed="${f === "todo"}">${L("没填完")} <span class="muted">${todo}</span></button></div></div>
+    ${dates.map(d => `<div class="day ${d === t ? "today" : ""}"><div class="d">${wd(d)}<small>${d.slice(5)}</small></div><div class="clslist">${list.filter(c => c.date === d).map(c => `<div class="attline">${tSessCard(c, withT)}<div class="thumbs">${attThumbs(attOf(c.id))}</div></div>`).join("")}</div></div>`).join("") || `<div class="empty">${L(f === "todo" ? "都填完了 ✓" : "这段时间没有课")}</div>`}
+    <div class="row"><span class="spacer"></span><button class="btn small" data-attmore>${L("看更早的")}</button></div>
+  </section>`;
+}
+
+// the office's page: every teacher's attendance photos and grade sheets
+function viewTAtt() {
+  const tf = S.tatF || "", tl = S.teachers.filter(t => t.active !== false || t.id === tf).sort(byName), t = today();
+  const gs = groupsOf(tf).filter(g => g.on || gradeDoc(g) || g.last.date >= addDays(t, -30));
+  return `<section class="panel"><div class="row"><h2>${L("老师考勤")}</h2><select id="tatf" style="width:auto"><option value="">${L("全部老师")}</option>${tl.map(x => `<option value="${x.id}" ${tf === x.id ? "selected" : ""}>${esc(tboth(x))}</option>`).join("")}</select><span class="spacer"></span></div>
+    <p class="muted" style="margin:0;font-size:13px">${L("老师用自己的“老师”账号登录后登记：上课和下课各拍一张照片，每个学生点到、填作业分。在“管理人员”页给老师开账号，权限选“老师”。")}</p></section>
+    ${viewAtt(tf, !tf)}${groupPanel(gs, "成绩单", !tf)}`;
+}
+
+function attForm(c) {
+  const a0 = attOf(c.id) || {}, me = isTch();
+  if (me && c.teacherId !== myTid() && a0.teacherId !== myTid()) return toast(L("这不是你的课"));
+  const tidW = a0.teacherId || (me ? myTid() : c.teacherId || ""), future = c.date > today(), loc = locOf(c.locationId);
+  const ph = { photoStart: a0.photoStart || "", photoEnd: a0.photoEnd || "", photoStartAt: a0.photoStartAt || "", photoEndAt: a0.photoEndAt || "" };
+  const ids = [...new Set([...(c.studentIds || []), ...Object.keys(a0.marks || {}).filter(id => stu(id))])];
+  const base = () => ({ teacherId: tidW, sessionId: c.id, courseId: c.courseId || "", date: c.date, start: c.start || "", end: c.end || "", level: c.level || "", title: c.title || "", locationId: c.locationId || "", updatedAt: new Date().toISOString(), updatedBy: S.acct?.id || "" });
+  const photoBox = k => { const id = ph[k], lab = k === "photoStart" ? "上课照片" : "下课照片"; return `<div class="attph"><b>${L(lab)}</b>
+    ${id ? `<a href="${blobUrl(id)}" target="_blank" rel="noopener" data-lb="${id}" data-lbcap="${esc(L(lab))}"><img src="${blobUrl(id)}" alt="${esc(L(lab))}"></a><span class="muted" style="font-size:12px">${esc(L("上传于 {0}", fmtTime(ph[k + "At"])))}</span>` : `<div class="attph0">${L(k === "photoStart" ? "上课开始时拍一张全班照片" : "下课时再拍一张")}</div>`}
+    <label class="btn small ${id ? "" : "primary"}" ${future ? 'aria-disabled="true"' : ""}>${L(id ? "换一张" : "拍照 / 选照片")}<input type="file" accept="image/*" data-ph="${k}" hidden ${future ? "disabled" : ""}></label></div>`; };
+  const row = id => { const s = stu(id), m = a0.marks?.[id] || {}; return `<div class="attstu" data-sid="${id}">
+    <span class="row" style="gap:8px;flex-wrap:nowrap;min-width:0">${avatar(s)}<b style="overflow:hidden;text-overflow:ellipsis">${esc(sname(s))}</b></span>
+    <span class="payseg attseg" role="group">${ATT_ST.map(([k, l]) => `<button type="button" data-st="${k}" aria-pressed="${m.st === k}">${L(l)}</button>`).join("")}</span>
+    <input class="atthw" type="number" min="0" step="0.5" inputmode="decimal" value="${esc(m.hw ?? "")}" placeholder="${L("作业分")}" aria-label="${L("作业分")}">
+    <input class="attnt" value="${esc(m.note || "")}" placeholder="${L("备注")}" aria-label="${L("备注")}"></div>`; };
+  const el = openSheet(`<form id="attform" style="display:grid;gap:12px">
+    <div class="row"><h2>${L("考勤")}</h2><span class="muted">${esc(c.date)} ${esc(wd(c.date))} ${esc(c.start || "")}${c.end ? "–" + esc(c.end) : ""}</span><span class="spacer"></span><button type="button" class="btn" data-close>${L("关闭")}</button>${future ? "" : `<button class="btn primary">${L("保存")}</button>`}</div>
+    <div class="muted" style="font-size:13.5px"><b style="color:var(--fg)">${esc(cname(c) || L("课程"))}</b> · ${esc(tLabel(c))}${loc ? ` · ${esc(lname(loc))}` : ""}${roomName(c) ? ` · ${esc(roomName(c))}` : ""}</div>
+    ${future ? `<div class="banner" style="margin:0">${L("这节课还没到，上课当天才能登记考勤。")}</div>` : ""}
+    <div class="attphs" id="attphs">${photoBox("photoStart")}${photoBox("photoEnd")}</div>
+    <div class="panel"><div class="row"><h3>${L("学生考勤和作业")}</h3><span class="muted">${esc(L("{0} 名学生", ids.length))}</span><span class="spacer"></span>${future || !ids.length ? "" : `<button type="button" class="btn small" data-allp>${L("全部到")}</button>`}</div>
+      <div class="grid2">
+        <label class="f">${L("今天的作业")}<input name="hwTitle" value="${esc(a0.hwTitle || "")}" placeholder="${L("例：第 5 课练习册")}"></label>
+        <label class="f">${L("作业满分")}<input name="hwTotal" type="number" min="1" step="1" inputmode="numeric" value="${esc(a0.hwTotal ?? 100)}"></label>
+      </div>
+      <div class="attlist">${ids.map(row).join("") || `<span class="muted">${L("这节课还没有学生")}</span>`}</div>
+      <label class="f">${L("上课内容（可不填）")}<textarea name="lesson" rows="2">${esc(a0.lesson || "")}</textarea></label>
+    </div>
+    ${a0.updatedAt ? `<p class="muted" style="margin:0;font-size:12px">${esc(L("最后修改：{0} · {1}", fmtTime(a0.updatedAt), a0.updatedBy || ""))}</p>` : ""}
+  </form>`);
+  if (future) el.querySelectorAll("#attform input, #attform textarea, #attform [data-st]").forEach(x => x.disabled = true);
+  el.addEventListener("click", e => {
+    if (e.target.closest("[data-close]")) closeSheet();
+    const b = e.target.closest("[data-st]"); if (b && !future) { const on = b.getAttribute("aria-pressed") !== "true"; b.parentElement.querySelectorAll("[data-st]").forEach(x => x.setAttribute("aria-pressed", "false")); b.setAttribute("aria-pressed", String(on)); }
+    if (e.target.closest("[data-allp]")) el.querySelectorAll(".attstu").forEach(r => r.querySelectorAll("[data-st]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.st === "p"))));
+  });
+  // a photo is saved the moment it is uploaded, so it is not lost if the teacher closes the page before 保存
+  el.addEventListener("change", async e => {
+    const inp = e.target.closest("[data-ph]"); if (!inp) return;
+    const f = inp.files[0], k = inp.dataset.ph; inp.value = ""; if (!f) return;
+    const lab = inp.parentElement; lab.classList.add("busy"); lab.firstChild.textContent = L("上传中…");
+    const [id] = await uploadImages([f]);
+    if (!id) { lab.classList.remove("busy"); lab.firstChild.textContent = L(ph[k] ? "换一张" : "拍照 / 选照片"); return; }
+    const at = new Date().toISOString();
+    try { await S.db.collection("attendance").doc(c.id).set({ ...base(), [k]: id, [k + "At"]: at }, { merge: true }); ph[k] = id; ph[k + "At"] = at; toast(L("照片已保存")); }
+    catch (err) { toast(L("保存失败：{0}", err?.message || err?.code || err)); }
+    const box = $("#attphs", el); if (box) box.innerHTML = photoBox("photoStart") + photoBox("photoEnd");
+  });
+  $("#attform", el).addEventListener("submit", async e => {
+    e.preventDefault(); if (future) return;
+    const fd = new FormData(e.target), tot = Number(fd.get("hwTotal")) || 100, marks = {};
+    for (const r of el.querySelectorAll(".attstu")) {
+      const st = r.querySelector('[data-st][aria-pressed="true"]')?.dataset.st || "", hv = r.querySelector(".atthw").value.trim(), hw = hv === "" ? null : Number(hv);
+      if (hw != null && (!(hw >= 0) || hw > tot)) { r.querySelector(".atthw").focus(); return toast(L("作业分要在 0 到 {0} 之间", tot)); }
+      marks[r.dataset.sid] = { st, hw, note: r.querySelector(".attnt").value.trim() };
+    }
+    const btn = e.target.querySelector(".btn.primary"); btn.disabled = true;
+    const d = { ...base(), hwTitle: (fd.get("hwTitle") || "").trim(), hwTotal: tot, lesson: (fd.get("lesson") || "").trim(), marks };
+    if (!a0.createdAt) d.createdAt = d.updatedAt;
+    try { await S.db.collection("attendance").doc(c.id).set(d, { merge: true }); closeSheet(); toast(L(ph.photoStart && ph.photoEnd ? "考勤已保存" : "已保存，还差上课或下课照片")); }
+    catch (err) { btn.disabled = false; toast(L("保存失败：{0}", err?.message || err?.code || err)); }
+  });
+}
+
+function gradesForm(g) {
+  if (isTch() && g.teacherId !== myTid()) return toast(L("这不是你的课"));
+  const doc = gradeDoc(g) || {}, cols = (doc.cols || GRADE_COLS).map(x => ({ ...x })), vals = JSON.parse(JSON.stringify(doc.vals || {})), notes = { ...(doc.notes || {}) };
+  const ids = [...new Set([...g.sids, ...Object.keys(vals).filter(id => stu(id))])].sort((a, b) => sname(stu(a)).localeCompare(sname(stu(b)), "zh"));
+  const stats = Object.fromEntries(ids.map(id => [id, stuStats(g.sess.filter(c => c.date <= today()), id)]));
+  const el = openSheet(`<div style="display:grid;gap:12px">
+    <div class="row"><h2>${L("成绩单")}</h2><span class="muted">${esc(g.label)} · ${esc(tLabel(g.first))}</span><span class="spacer"></span><button type="button" class="btn" data-close>${L("关闭")}</button><button type="button" class="btn" data-gcsv>${L("导出表格")}</button><button type="button" class="btn primary" data-gsave>${L("保存")}</button></div>
+    <div class="muted" style="font-size:13px">${esc(g.when)} · ${esc(L("{0} 名学生", ids.length))} · ${esc(L("已上 {0} / {1} 节", g.done, g.sess.length))}</div>
+    <div class="tablewrap" id="gtable"></div>
+    <div class="row" style="gap:8px"><span class="muted" style="font-size:13px">${L("加一列：")}</span><input id="gcname" placeholder="${L("例：小测验 1")}" style="width:12em"><input id="gcmax" type="number" min="1" value="100" style="width:6em" aria-label="${L("满分")}"><button type="button" class="btn small" data-gadd>${L("＋ 加一列")}</button></div>
+    <p class="muted" style="margin:0;font-size:12.5px">${L("出勤是“到 + 迟到”的次数 / 已登记的次数；作业平均按百分制算。这两列从考勤自动来，不用填。")}</p>
+    ${doc.updatedAt ? `<p class="muted" style="margin:0;font-size:12px">${esc(L("最后修改：{0} · {1}", fmtTime(doc.updatedAt), doc.updatedBy || ""))}</p>` : ""}
+  </div>`);
+  const grab = () => el.querySelectorAll("[data-gc]").forEach(i => { const v = i.value.trim(); (vals[i.dataset.gs] ||= {})[i.dataset.gc] = v === "" ? null : Number(v); });
+  const grabN = () => el.querySelectorAll("[data-gn]").forEach(i => { notes[i.dataset.gn] = i.value.trim(); });
+  const draw = () => {
+    $("#gtable", el).innerHTML = `<table class="gtab"><thead><tr><th>${L("学生")}</th><th>${L("出勤")}</th><th>${L("作业平均")}</th>${cols.map((x, i) => `<th>${esc(L(x.name))} <span class="muted">/${+x.max}</span> <button type="button" class="gx" data-gdel="${i}" title="${L("删除这一列")}" aria-label="${L("删除这一列")}">×</button></th>`).join("")}<th>${L("评语")}</th></tr></thead><tbody>
+      ${ids.map(id => { const st = stats[id]; return `<tr><td class="nm"><b>${esc(sname(stu(id)))}</b></td><td>${st.rec ? `${st.here}/${st.rec}` : "—"}</td><td>${st.hw == null ? "—" : fmtH(Math.round(st.hw * 10) / 10)}</td>${cols.map(x => `<td><input type="number" min="0" max="${+x.max}" step="0.5" inputmode="decimal" data-gs="${id}" data-gc="${esc(x.id)}" value="${esc(vals[id]?.[x.id] ?? "")}"></td>`).join("")}<td><input data-gn="${id}" value="${esc(notes[id] || "")}"></td></tr>`; }).join("") || `<tr><td colspan="${cols.length + 4}" class="muted">${L("这个班还没有学生")}</td></tr>`}
+    </tbody></table>`;
+  };
+  draw();
+  const saveG = async () => {
+    grab(); grabN();
+    for (const id of ids) for (const x of cols) { const v = vals[id]?.[x.id]; if (v != null && (!(v >= 0) || v > +x.max)) { toast(L("{0} 的“{1}”要在 0 到 {2} 之间", sname(stu(id)), L(x.name), +x.max)); return false; } }
+    const now = new Date().toISOString(), d = { teacherId: g.teacherId, key: g.key, courseId: g.courseId, label: g.label, cols, vals, notes, updatedAt: now, updatedBy: S.acct?.id || "", createdAt: doc.createdAt || now };
+    try { await S.db.collection("grades").doc(g.id).set(d); toast(L("成绩已保存")); return true; } catch (err) { toast(L("保存失败：{0}", err?.message || err?.code || err)); return false; }
+  };
+  el.addEventListener("click", async e => {
+    if (e.target.closest("[data-close]")) closeSheet();
+    const dl = e.target.closest("[data-gdel]"); if (dl) { grab(); grabN(); const x = cols[+dl.dataset.gdel]; confirmBox(L("删除这一列"), L("删除“{0}”这一列？保存后才会生效。", L(x.name)), () => { cols.splice(+dl.dataset.gdel, 1); draw(); }); }
+    if (e.target.closest("[data-gadd]")) { const n = $("#gcname", el).value.trim(), mx = Number($("#gcmax", el).value) || 100; if (!n) return $("#gcname", el).focus(); grab(); grabN(); cols.push({ id: "c" + Date.now().toString(36), name: n, max: mx }); $("#gcname", el).value = ""; draw(); }
+    const sb = e.target.closest("[data-gsave]"); if (sb) { sb.disabled = true; if (await saveG()) closeSheet(); else sb.disabled = false; }
+    if (e.target.closest("[data-gcsv]")) {
+      grab(); grabN(); if (!S.downloads) return toast(L("这个环境不支持下载文件"));
+      const rows = [[L("学生"), L("出勤"), L("作业平均"), ...cols.map(x => `${L(x.name)} /${+x.max}`), L("评语")], ...ids.map(id => { const st = stats[id]; return [sname(stu(id)), st.rec ? `${st.here}/${st.rec}` : "", st.hw == null ? "" : Math.round(st.hw * 10) / 10, ...cols.map(x => vals[id]?.[x.id] ?? ""), notes[id] || ""]; })];
+      const csv = "﻿" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+      try { await S.downloads.save({ filename: `${L("成绩单")}_${g.label.replace(/[\\/:*?"<>|]/g, "")}_${today()}.csv`, data: csv }); } catch (err) { if (err?.code !== "declined") toast(L("导出失败：{0}", err?.message || err?.code)); }
+    }
+  });
+}
+
+// students in the teacher's classes that are running now or ended in the last 30 days
+function viewMyStudents() {
+  const tid = myTid(); if (!tid) return `<div class="banner">${L("这个老师账号还没有连到老师名单，请联系总管理员。")}</div>`;
+  const t = today(), gs = groupsOf(tid).filter(g => g.on || g.last.date >= addDays(t, -30)), where = {};
+  for (const g of gs) for (const id of g.sids) (where[id] ||= []).push(g.label);
+  const mine = sessOf(tid).filter(c => c.date <= t);
+  const list = Object.keys(where).map(stu).filter(Boolean).sort((a, b) => sname(a).localeCompare(sname(b), "zh"));
+  return `<section class="panel"><div class="row"><h2>${L("我的学生")}</h2><span class="muted">${esc(L("{0} 名", list.length))}</span></div>
+    ${list.length ? `<div class="tablewrap"><table><thead><tr><th>${L("学生")}</th><th>${L("班级")}</th><th>${L("学生电话")}</th><th>${L("家长")}</th><th>${L("出勤")}</th></tr></thead><tbody>
+    ${list.map(s => { const st = stuStats(mine, s.id), p = (s.parents || [])[0]; return `<tr class="click" data-tstu="${s.id}"><td class="nm"><span class="row" style="gap:8px;flex-wrap:nowrap">${avatar(s)}<span><b>${esc(sname(s))}</b>${s.level ? `<div class="muted" style="font-size:12px">${esc(s.level)}</div>` : ""}</span></span></td><td>${esc([...new Set(where[s.id])].join("、"))}</td><td>${esc(s.phone || "—")}</td><td>${p ? `${esc(p.name || "")} ${esc(p.phone || "")}` : "—"}</td><td>${st.rec ? esc(`${st.here}/${st.rec}`) : "—"}</td></tr>`; }).join("")}
+    </tbody></table></div>` : `<div class="empty">${L("你的班里还没有学生")}</div>`}
+    <p class="muted" style="margin:0;font-size:12.5px">${L("点学生可以补充或修改联系方式和照片。新学生报名、换班请联系办公室。")}</p></section>`;
+}
+function tStudentForm(s) {
+  const el = openSheet(`<form id="tstuform" style="display:grid;gap:14px">
+    <div class="row"><h2>${L("学生资料")}</h2><span class="muted">${esc(s.code || "")}</span><span class="spacer"></span><button type="button" class="btn" data-close>${L("取消")}</button><button class="btn primary">${L("保存")}</button></div>
+    <div class="panel"><div class="grid2">
+      <label class="f">${L("中文名")}<input name="nameZh" value="${esc(s.nameZh)}"></label>
+      <label class="f">${L("西语名 / Nombre")}<input name="nameEs" value="${esc(s.nameEs)}"></label>
+      <label class="f">${L("性别")}<select name="gender">${opts(["", "男", "女"], s.gender || "")}</select></label>
+      <label class="f">${L("出生日期")}<input name="birth" type="date" value="${esc(s.birth)}"></label>
+      <label class="f">${L("C.I. / 护照号")}<input name="idNo" value="${esc(s.idNo)}"></label>
+      <label class="f">${L("学生电话")}<input name="phone" value="${esc(s.phone)}" inputmode="tel"></label>
+      <label class="f">${L("学生邮箱")}<input name="email" type="email" value="${esc(s.email)}"></label>
+      <label class="f">${L("地址")}<input name="address" value="${esc(s.address)}"></label>
+      <label class="f">${L("学生照片")}<input name="photo" type="file" accept="image/*"></label>
+      <div>${s.photo ? `<div class="thumbs"><div class="th"><img src="${blobUrl(s.photo)}" alt=""></div></div>` : ""}</div>
+      <label class="f" style="grid-column:1/-1">${L("老师备注")}<textarea name="tnote" placeholder="${L("例：学习情况、需要注意的地方")}">${esc(s.tnote)}</textarea></label>
+    </div></div>
+    <div class="panel"><div class="row"><h3>${L("家长联系方式")}</h3><span class="spacer"></span><button type="button" class="btn small" data-addparent>${L("＋ 添加家长")}</button></div>
+      <div id="parents" style="display:grid;gap:10px">${((s.parents || []).length ? s.parents : [{ relation: "母亲" }]).map(parentRow).join("")}</div></div>
+  </form>`);
+  el.addEventListener("click", e => {
+    if (e.target.closest("[data-close]")) closeSheet();
+    if (e.target.closest("[data-addparent]")) $("#parents", el).insertAdjacentHTML("beforeend", parentRow({}, 1));
+    const rm = e.target.closest("[data-rmparent]"); if (rm) rm.closest(".parent").remove();
+  });
+  $("#tstuform", el).addEventListener("submit", async e => {
+    e.preventDefault(); const f = e.target, fd = new FormData(f), btn = f.querySelector(".btn.primary");
+    const d = {};
+    for (const k of ["nameZh", "nameEs", "gender", "birth", "idNo", "phone", "email", "address", "tnote"]) d[k] = (fd.get(k) || "").trim();
+    if (!d.nameZh && !d.nameEs) return toast(L("请至少填写一个名字"));
+    d.parents = [...f.querySelectorAll(".parent")].map(p => ({ name: p.querySelector("[name=pname]").value.trim(), relation: p.querySelector("[name=prel]").value, phone: p.querySelector("[name=pphone]").value.trim(), email: p.querySelector("[name=pemail]").value.trim(), wechat: p.querySelector("[name=pwechat]").value.trim(), idNo: p.querySelector("[name=pid]").value.trim(), address: p.querySelector("[name=paddr]").value.trim() })).filter(p => p.name || p.phone || p.email || p.wechat || p.idNo || p.address);
+    btn.disabled = true; btn.textContent = L("保存中…");
+    const phf = f.querySelector("[name=photo]").files[0];
+    if (phf) { const [id] = await uploadImages([phf]); if (id) d.photo = id; }
+    Object.assign(d, { updatedAt: new Date().toISOString(), updatedBy: S.acct?.id || "" });
+    try { await S.db.collection("students").doc(s.id).update(d); closeSheet(); toast(L("已保存")); }
+    catch (err) { btn.disabled = false; btn.textContent = L("保存"); toast(L("保存失败：{0}", err?.message || err?.code || err)); }
+  });
+}
+
+function tPortalClick(t) {
+  const at = t.closest("[data-att]"); if (at) { const c = CL().find(x => x.id === at.dataset.att); if (c) attForm(c); else toast(L("这节课比较早，不在当前列表里")); return true; }
+  const gd = t.closest("[data-grade]"); if (gd) { const g = gradeGroup(gd.dataset.grade); if (g) gradesForm(g); return true; }
+  const ts = t.closest("[data-tstu]"); if (ts) { const s = stu(ts.dataset.tstu); if (s) tStudentForm(s); return true; }
+  if (t.closest("[data-attmore]")) { S.attN = (S.attN || 0) + 30; render(); return true; }
+  const af = t.closest("[data-attf]"); if (af) { S.attF = af.dataset.attf; render(); return true; }
+  return false;
+}
+
+Object.assign(ES, {"考勤完成": "Asistencia completa", "缺：{0}": "Falta: {0}", "这个老师账号还没有连到老师名单，请联系总管理员。": "Esta cuenta de profesor aún no está vinculada a la lista de profesores. Contacta al administrador general.", "{0}，你好": "Hola, {0}", "最近 30 天还有 {0} 节课的考勤没填完。": "En los últimos 30 días hay {0} clases con la asistencia incompleta.", "去填考勤": "Completar asistencia", "今天的课": "Clases de hoy", "今天没有课": "Hoy no tienes clases", "点一节课就能登记考勤：上课时拍一张照片，下课时再拍一张，再给每个学生点到、填作业分。": "Toca una clase para registrar la asistencia: una foto al empezar, otra al terminar, y marca a cada estudiante con su nota de tarea.", "我的课表": "Mi horario", "已上": "Dadas", "成绩单": "Libreta de notas", "{0} / {1} 节": "{0} / {1} clases", "已填 {0} 人": "{0} con notas", "还没填": "Sin notas", "点一个班打开成绩单：期中、期末的笔试和口语，还可以自己加列。出勤和作业平均分会从考勤里自动算。": "Toca un grupo para abrir la libreta: parcial y final, escrito y oral, y puedes añadir columnas. La asistencia y el promedio de tareas salen solos de la asistencia.", "考勤": "Asistencia", "最近 {0} 天": "Últimos {0} días", "没填完": "Incompletas", "看更早的": "Ver anteriores", "老师考勤": "Asistencia docente", "老师用自己的“老师”账号登录后登记：上课和下课各拍一张照片，每个学生点到、填作业分。在“管理人员”页给老师开账号，权限选“老师”。": "Cada profesor entra con su propia cuenta de «Profesor» y registra una foto al empezar y otra al terminar, la asistencia y la nota de tarea. Crea sus cuentas en «Personal», con el permiso «Profesor».", "这不是你的课": "Esta clase no es tuya", "上传于 {0}": "Subida el {0}", "作业分": "Nota de tarea", "这节课还没到，上课当天才能登记考勤。": "Esta clase aún no llega. La asistencia se registra el mismo día.", "学生考勤和作业": "Asistencia y tareas", "全部到": "Todos presentes", "今天的作业": "Tarea de hoy", "例：第 5 课练习册": "Ej.: cuaderno, lección 5", "作业满分": "Nota máxima de la tarea", "这节课还没有学生": "Esta clase aún no tiene estudiantes", "上课内容（可不填）": "Contenido de la clase (opcional)", "最后修改：{0} · {1}": "Última modificación: {0} · {1}", "上传中…": "Subiendo…", "照片已保存": "Foto guardada", "作业分要在 0 到 {0} 之间": "La nota de tarea debe estar entre 0 y {0}", "导出表格": "Exportar tabla", "已上 {0} / {1} 节": "Dadas {0} de {1} clases", "加一列：": "Añadir columna:", "例：小测验 1": "Ej.: Prueba 1", "＋ 加一列": "＋ Añadir columna", "出勤是“到 + 迟到”的次数 / 已登记的次数；作业平均按百分制算。这两列从考勤自动来，不用填。": "Asistencia = presentes + atrasos / clases registradas; el promedio de tareas va sobre 100. Estas dos columnas se calculan solas.", "出勤": "Asistencia", "作业平均": "Promedio de tareas", "删除这一列": "Eliminar columna", "评语": "Comentario", "这个班还没有学生": "Este grupo aún no tiene estudiantes", "{0} 的“{1}”要在 0 到 {2} 之间": "«{1}» de {0} debe estar entre 0 y {2}", "删除“{0}”这一列？保存后才会生效。": "¿Eliminar la columna «{0}»? Se aplica al guardar.", "我的学生": "Mis estudiantes", "{0} 名": "{0}", "你的班里还没有学生": "Tus grupos aún no tienen estudiantes", "点学生可以补充或修改联系方式和照片。新学生报名、换班请联系办公室。": "Toca un estudiante para completar sus datos de contacto o su foto. Para inscripciones nuevas o cambios de grupo, contacta a la oficina.", "老师备注": "Notas del profesor", "例：学习情况、需要注意的地方": "Ej.: cómo avanza, cosas a tener en cuenta", "老师（只看自己的课）": "Profesor (solo sus clases)", "是哪位老师": "¿Qué profesor es?", "老师账号只能看到自己的课、学生、考勤和成绩，看不到付款和其他页面。": "Una cuenta de profesor solo ve sus clases, estudiantes, asistencia y notas; no ve pagos ni otras páginas.", "请选择这个账号对应的老师": "Elige el profesor de esta cuenta", "未连到老师": "Sin profesor vinculado", "只能修改自己的时段": "Solo puedes cambiar tus propios horarios", "到": "Presente", "迟到": "Atraso", "缺课": "Falta", "请假": "Permiso", "期中笔试": "Parcial escrito", "期中口语": "Parcial oral", "期末笔试": "Final escrito", "期末口语": "Final oral", "上课照片": "Foto de inicio", "下课照片": "Foto de cierre", "学生考勤": "asistencia", "上课": "Inicio", "下课": "Cierre", "已保存，还差上课或下课照片": "Guardado. Falta la foto de inicio o de cierre", "考勤已保存": "Asistencia guardada", "都填完了 ✓": "Todo completo ✓", "这段时间没有课": "No hay clases en este periodo", "上课开始时拍一张全班照片": "Al empezar, toma una foto de toda la clase", "下课时再拍一张": "Al terminar, toma otra", "换一张": "Cambiar foto", "拍照 / 选照片": "Tomar / elegir foto", "还没有照片": "Sin foto", "学生资料": "Datos del estudiante", "{0} 名学生": "{0} estudiantes", "{0} 个班": "{0} grupos", "上课时间": "Horario", "还没有班级": "Aún no hay grupos", "我的班级": "Mis grupos", "未定老师": "Sin profesor", "老师": "Profesor"});
 /* ---------- CSV ---------- */
 async function exportCsv() {
   const head = ["中文名", "西语名 / Nombre", "学号", "C.I. / 护照号", "所属教学点", "状态", "级别", "性别", "出生日期", "登记日期", "电话", "邮箱", "地址", "家长1", "家长1电话", "家长1地址", "家长2", "家长2电话", "最近上课", "下次上课", "欠费", "HSK"].map(k => L(k));
@@ -3576,6 +3899,7 @@ document.addEventListener("click", e => {
   const t = e.target;
   if (noPay() && t.closest("[data-newpay],[data-locpay],[data-pay],[data-fampay],[data-act=backup],[data-act=owef]")) return;
   const vw = t.closest("[data-lb]"); if (vw && !e.ctrlKey && !e.metaKey && !e.shiftKey) { e.preventDefault(); openViewer(vw); return; }
+  if (!t.closest(".sheet") && tPortalClick(t)) return;
   const lg = t.closest("[data-lang]"); if (lg) { S.lang = lg.dataset.lang; try { localStorage.setItem("sy-lang", S.lang); } catch { } const open = sheetEl && S.openId; render(); if (open) openStudent(S.openId); else closeSheet(); return; }
   const tab = t.closest("[data-tab]"); if (tab) { S.tab = tab.dataset.tab; try { localStorage.setItem("sy-tab", S.tab); } catch { } render(); return; }
   const lw = t.closest("[data-leadwa]"); if (lw) { const x = S.leads.find(y => y.id === lw.dataset.leadwa); if (x) leadWa(x); return; }
@@ -3631,7 +3955,7 @@ document.addEventListener("click", e => {
   const ac = t.closest("[data-acct]"); if (ac) { if (isOwner()) accountForm(S.accounts.find(x => x.id === ac.dataset.acct)); return; }
   const act = t.closest("[data-act]"); if (act) { S.openId = null; if (act.dataset.act === "newstu") studentForm(); if (act.dataset.act === "scanform") { studentForm(); $("#formscan")?.click(); } if (act.dataset.act === "csv") exportCsv(); if (act.dataset.act === "backup") backupNow(act); if (act.dataset.act === "ttcsv") exportTT(); if (act.dataset.act === "ttpdf") ttPdf(act); if (act.dataset.act === "flypdf") flyPdf(act); if (act.dataset.act === "flyreset") confirmBox(L("文字恢复成模板"), L("费用、要求、HSK、联系人这些文字会换回模板里的内容，选的班和每个班的文字不变。"), () => flySave(Object.fromEntries(Object.entries(FLY_DEF)))); if (act.dataset.act === "newroom") roomForm(); if (act.dataset.act === "newhol") holidayForm(); if (act.dataset.act === "newloc") locationForm(); if (act.dataset.act === "newtch") teacherForm(); if (act.dataset.act === "newk") courseForm(); if (act.dataset.act === "newacct" && isOwner()) accountForm(); if (act.dataset.act === "owef") { S.stFilter = S.tab === "students" && S.stFilter === "owe" ? "active" : "owe"; S.tab = "students"; render(); } }
 });
-document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches(".cls[data-cls], .rcard")) e.target.click(); });
+document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches(".cls[data-cls], .cls[data-att], .rcard")) e.target.click(); });
 document.addEventListener("input", e => {
   if (e.target.id === "q") { S.q = e.target.value; S._focusQ = true; render(); }
   if (e.target.id === "lq") { S.lq = e.target.value; render(); const i = $("#lq"); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
@@ -3642,6 +3966,7 @@ document.addEventListener("change", e => {
   if (e.target.id === "locpick") { S.loc = e.target.value; try { localStorage.setItem("sy-loc", S.loc); } catch { } render(); }
   if (e.target.id === "tchf") { S.tchF = e.target.value; render(); }
   if (e.target.id === "zoomt") { S.zoomT = e.target.value; render(); }
+  if (e.target.id === "tatf") { S.tatF = e.target.value; S.attN = 0; render(); }
   if (e.target.id === "kf") { S.kF = e.target.value; render(); }
   if (e.target.id === "kt") { S.kT = e.target.value; render(); }
   if (e.target.id === "kl") { S.kL = e.target.value; render(); }
@@ -3677,24 +4002,35 @@ render();
     if (!FB.user || !FB.uname()) { if (FB.user) await FB.logout(); await FB.checkSetup(); S.ready.a = true; render(); return; }
   }
   const since = S.since = addDays(today(), -200);
+  const tBoot = FB && FB.claims?.role === "teacher";
   const sub = (q, key, field) => q.onSnapshot(snap => { _cl = null; S[field] = snap.docs.map(d => ({ id: d.id, ...d.data() })); if (field === "locations" && S.loc && !S.locations.some(x => x.id === S.loc)) S.loc = ""; S.ready[key] = true; render(); openFromHash(); }, () => { S.ready[key] = true; toast(L("数据连接中断，请刷新页面")); render(); });
-  db.collection("accounts").limit(200).onSnapshot(snap => { S.accounts = snap.docs.map(d => ({ id: d.id, ...d.data() })); S.acctFail = false; S.ready.a = true; syncAcct(); render(); openFromHash(); },
+  // a teacher account reads only its own account, the timetable, students, the teacher list, Zoom, and its own attendance and grades
+  (tBoot ? db.collection("accounts").doc(FB.uname()) : db.collection("accounts").limit(200)).onSnapshot(snap => { S.accounts = tBoot ? (snap.exists ? [{ id: snap.id, ...snap.data() }] : []) : snap.docs.map(d => ({ id: d.id, ...d.data() })); S.acctFail = false; S.ready.a = true; syncAcct(); render(); openFromHash(); },
     () => { S.ready.a = true; if (S.acct) toast(L("数据连接中断，请刷新页面")); else S.acctFail = true; render(); });
   const subMany = (qs, key, field) => { const parts = qs.map(() => null); return qs.map((q, i) => q.onSnapshot(snap => { parts[i] = snap.docs.map(d => ({ id: d.id, ...d.data() })); if (parts.every(Boolean)) { S[field] = parts.flat(); S.ready[key] = true; render(); openFromHash(); } }, () => { S.ready[key] = true; toast(L("数据连接中断，请刷新页面")); render(); })); };
   sub(db.collection("students").limit(1000), "s", "students");
   sub(db.collection("teachers").limit(500), "t", "teachers");
   sub(db.collection("locations").limit(200), "l", "locations");
+  sub(db.collection("classes").where("date", ">=", since).orderBy("date", "asc").limit(1000), "c", "classes");
+  sub(db.collection("courses").limit(500), "k", "courses");
+  sub(db.collection("rooms").limit(300), "r", "rooms");
+  sub(db.collection("zoom").limit(500), "z", "zoom");
+  sub(db.collection("holidays").limit(500), "h", "holidays");
+  if (tBoot) {
+    const tid = FB.claims.tid || "-";
+    sub(db.collection("attendance").where("teacherId", "==", tid).limit(3000), "at", "attendance");
+    sub(db.collection("grades").where("teacherId", "==", tid).limit(500), "gr", "grades");
+    Object.assign(S.ready, { p: true, x: true, g: true, i: true, o: true, e: true, m: true, f: true });
+    return;
+  }
+  sub(db.collection("attendance").where("date", ">=", addDays(today(), -400)).limit(5000), "at", "attendance");
+  sub(db.collection("grades").limit(1000), "gr", "grades");
   // payments outgrow one 1000-doc query, so read them in half-year windows and merge
   const cuts = []; for (let y = 2025; y <= new Date().getFullYear() + 1; y++) cuts.push(`${y}-01-01`, `${y}-07-01`);
   const pq = db.collection("payments");
   S.paySub = () => subMany([pq.where("date", "<", cuts[0]), ...cuts.map((c, i) => i + 1 < cuts.length ? pq.where("date", ">=", c).where("date", "<", cuts[i + 1]) : pq.where("date", ">=", c))].map(q => q.limit(1000)), "p", "payments");
   payGate();
-  sub(db.collection("classes").where("date", ">=", since).orderBy("date", "asc").limit(1000), "c", "classes");
-  sub(db.collection("courses").limit(500), "k", "courses");
   subMany(["exam", "hsk"].map(k => db.collection("scores").where("kind", "==", k).limit(1000)), "x", "scores");
-  sub(db.collection("rooms").limit(300), "r", "rooms");
-  sub(db.collection("zoom").limit(500), "z", "zoom");
-  sub(db.collection("holidays").limit(500), "h", "holidays");
   sub(db.collection("groups").limit(1000), "g", "groups");
   sub(db.collection("items").limit(500), "i", "items");
   sub(db.collection("loans").limit(1000), "o", "loans");

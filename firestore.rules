@@ -1,26 +1,52 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // who you are comes from the claims the server functions put on your sign-in: role, uname, active
+    // who you are comes from the claims the server functions put on your sign-in: role, uname, active (and tid for teachers)
     function signedIn() { return request.auth != null && request.auth.token.active == true && request.auth.token.role in ['owner', 'staff', 'edu']; }
     function seesMoney() { return signedIn() && request.auth.token.role in ['owner', 'staff']; }
     function isOwner() { return signedIn() && request.auth.token.role == 'owner'; }
+    // 老师 accounts: tied to one teacher (tid); they read the timetable and students, and write only their own attendance, grades and Zoom slots
+    function isTeacher() { return request.auth != null && request.auth.token.active == true && request.auth.token.role == 'teacher' && request.auth.token.tid is string; }
+    function tid() { return request.auth.token.tid; }
+    function mine() { return isTeacher() && resource.data.teacherId == tid(); }
+    function staysMine() { return isTeacher() && request.resource.data.teacherId == tid(); }
 
     // only says whether the first owner has been made, so the sign-in page knows which form to show
     match /meta/{doc} { allow read: if true; allow write: if false; }
 
     match /accounts/{uname} {
-      allow read: if signedIn();
+      allow read: if signedIn() || (isTeacher() && request.auth.token.uname == uname);
       allow create, delete: if isOwner();
       // the owner edits accounts; anyone may stamp their own last sign-in
-      allow update: if isOwner() || (signedIn() && request.auth.token.uname == uname && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt']));
+      allow update: if isOwner() || ((signedIn() || isTeacher()) && request.auth.token.uname == uname && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt']));
     }
-    // 教务 accounts never read or write money
+    // 教务 and 老师 accounts never read or write money
     match /payments/{doc} { allow read, write: if seesMoney(); }
     match /vault/{doc} { allow read, write: if signedIn() && request.auth.token.uname in ['shanghen10', 'susi']; }
 
     match /{col}/{doc} {
       allow read, write: if signedIn() && !(col in ['meta', 'accounts', 'payments', 'vault']);
+      allow read: if isTeacher() && col in ['students', 'teachers', 'courses', 'classes', 'holidays', 'rooms', 'locations', 'zoom'];
+    }
+    // teachers may correct a student's contact details and photo, nothing else
+    match /students/{id} {
+      allow update: if isTeacher() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nameZh', 'nameEs', 'gender', 'birth', 'idNo', 'phone', 'email', 'address', 'parents', 'photo', 'tnote', 'updatedAt', 'updatedBy']);
+    }
+    match /zoom/{id} {
+      allow create: if staysMine();
+      allow update: if mine() && staysMine();
+      allow delete: if mine();
+    }
+    // one attendance record per class session, one grade sheet per class and teacher
+    match /attendance/{id} {
+      allow read: if mine();
+      allow create: if staysMine();
+      allow update: if mine() && staysMine();
+    }
+    match /grades/{id} {
+      allow read: if mine();
+      allow create: if staysMine();
+      allow update: if mine() && staysMine();
     }
   }
 }
