@@ -28,9 +28,19 @@ service cloud.firestore {
       allow read, write: if signedIn() && !(col in ['meta', 'accounts', 'payments', 'vault']);
       allow read: if isTeacher() && col in ['students', 'teachers', 'courses', 'classes', 'holidays', 'rooms', 'locations', 'zoom'];
     }
-    // teachers may correct a student's contact details and photo, nothing else
+    function onlyChanges(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    // teachers may correct a student's contact details and photo, and register a new student with the basics
     match /students/{id} {
-      allow update: if isTeacher() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nameZh', 'nameEs', 'gender', 'birth', 'idNo', 'phone', 'email', 'address', 'parents', 'photo', 'tnote', 'updatedAt', 'updatedBy']);
+      allow update: if isTeacher() && onlyChanges(['nameZh', 'nameEs', 'gender', 'birth', 'idNo', 'phone', 'email', 'address', 'parents', 'photo', 'tnote', 'updatedAt', 'updatedBy']);
+      allow create: if isTeacher() && request.resource.data.createdBy == request.auth.token.uname && request.resource.data.keys().hasOnly(['nameZh', 'nameEs', 'phone', 'email', 'gender', 'birth', 'parents', 'status', 'level', 'locationId', 'code', 'regDate', 'note', 'createdAt', 'createdBy']);
+    }
+    // and add or remove students in their own classes, nothing else about the class
+    match /courses/{id} {
+      allow update: if mine() && onlyChanges(['studentIds', 'updatedAt', 'updatedBy']);
+    }
+    match /classes/{id} {
+      allow update: if isTeacher() && onlyChanges(['studentIds', 'updatedAt', 'updatedBy'])
+        && (resource.data.get('teacherId', '') == tid() || (resource.data.get('courseId', '') != '' && get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data.get('teacherId', '') == tid()));
     }
     match /zoom/{id} {
       allow create: if staysMine();

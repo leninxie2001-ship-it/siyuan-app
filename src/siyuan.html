@@ -215,6 +215,16 @@ html.fb [data-gsimport], html.fb [data-regimport], html.fb [data-webpull] { disp
 .gtab input { width: 5.5em } .gtab td:last-child input { width: 12em }
 .gtab .gx { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 14px } .gtab .gx:hover { color: var(--seal) }
 @media (max-width: 640px) { .attphs { grid-template-columns: 1fr 1fr; gap: 8px } .attph { padding: 8px } .attstu { grid-template-columns: 1fr 1fr } .attstu > span:first-child { grid-column: 1 / -1 } .attseg { grid-column: 1 / -1; width: 100% } .attseg button { flex: 1 } .attline { grid-template-columns: 1fr } }
+.stuadd { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--accent); border-radius: var(--r); background: color-mix(in srgb, var(--accent-soft) 45%, transparent) }
+.sarow { gap: 8px; flex-wrap: nowrap; padding: 4px 0; border-bottom: 1px solid var(--line) } .sarow b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.sanew summary { cursor: pointer; color: var(--accent); font-size: 13.5px; font-weight: 500 }
+.schips { display: flex; flex-wrap: wrap; gap: 6px }
+.schip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 8px 2px 2px; font-size: 13.5px } .schip .av { width: 26px; height: 26px; font-size: 10px }
+.schip.ask { padding: 4px 6px 4px 12px; background: var(--seal-soft); border-color: var(--seal) }
+.schip .gx { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 15px; padding: 0 2px } .schip .gx:hover { color: var(--seal) }
+.gatt td, .gatt th { text-align: center; padding: 5px 6px; white-space: nowrap } .gatt td.nm, .gatt th:first-child { text-align: left }
+.gatt td small { display: block; font-size: 10.5px; color: var(--muted) } .gatt .ga-p { color: var(--accent) } .gatt .ga-a { color: var(--seal); background: var(--seal-soft) } .gatt .ga-l, .gatt .ga-x { color: var(--amber) } .gatt .ga-n { color: var(--muted) }
+.linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; padding: 0; text-decoration: underline }
 /* sheet */
 .overlay { position: fixed; inset: 0; background: rgba(10,20,17,.45); display: flex; justify-content: center; align-items: flex-start; overflow-y: auto; z-index: 20; padding: max(24px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 24px max(12px, env(safe-area-inset-left, 0px)) }
 .sheet { background: var(--bg); border-radius: 10px; width: min(860px, 100%); padding: 18px; display: grid; gap: 14px; box-shadow: 0 10px 40px rgba(0,0,0,.25) }
@@ -784,7 +794,7 @@ function renderChrome() {
   $("#brandname").textContent = L("思源中文学校");
   $("#brandsub").textContent = L("内部管理 · Uso interno");
   const n = alerts().length;
-  const tabs = S.acct && isTch() ? [["my", "我的课表"], ["att", "考勤"], ["grades", "成绩"], ["mystu", "我的学生"], ["zoom", "Zoom 使用"]] : S.acct ? [["home", "首页提醒"], ["students", "学生"], ["schedule", "课程安排"], ["teachers", "教师课表"], ["groups", "班级总表"], ["tatt", "老师考勤"], ["flyer", "开课信息"], ["leads", "意向登记"], ...(noPay() ? [] : [["payments", "付款记录"], ["receipts", "收据"]]), ["loans", "物品借用"], ["staff", "老师和教学点"], ["zoom", "Zoom 使用"], ...(canVault() ? [["vault", "账号密码"]] : [])] : [];
+  const tabs = S.acct && isTch() ? [["my", "我的课表"], ["att", "考勤"], ["grades", "我的班级"], ["mystu", "我的学生"], ["zoom", "Zoom 使用"]] : S.acct ? [["home", "首页提醒"], ["students", "学生"], ["schedule", "课程安排"], ["teachers", "教师课表"], ["groups", "班级总表"], ["tatt", "老师考勤"], ["flyer", "开课信息"], ["leads", "意向登记"], ...(noPay() ? [] : [["payments", "付款记录"], ["receipts", "收据"]]), ["loans", "物品借用"], ["staff", "老师和教学点"], ["zoom", "Zoom 使用"], ...(canVault() ? [["vault", "账号密码"]] : [])] : [];
   $("#tabs").innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" aria-current="${S.tab === k}">${L(l)}${k === "home" && n ? `<span class="count">${n}</span>` : ""}${k === "leads" && leadDue().length ? `<span class="count">${leadDue().length}</span>` : ""}${k === "loans" && dueLoans().length ? `<span class="count">${dueLoans().length}</span>` : ""}</button>`).join("")
     + (S.acct && !isTch() && S.locations.length ? `<select id="locpick" aria-label="${L("教学点")}" style="width:auto;margin-left:6px"><option value="">${L("全部教学点")}</option>${S.locations.slice().sort(byLoc).map(l => `<option value="${l.id}" ${S.loc === l.id ? "selected" : ""}>${esc(lname(l))}</option>`).join("")}</select>` : "")
     + `<span class="lang" role="group" aria-label="Language"><button data-lang="zh" aria-pressed="${S.lang === "zh"}">中文</button><button data-lang="es" aria-pressed="${S.lang === "es"}">Español</button></span>`
@@ -3605,7 +3615,9 @@ function attMissing(c) {
   const a = attOf(c.id) || {}, out = [];
   if (!a.photoStart) out.push("上课照片");
   if (!a.photoEnd) out.push("下课照片");
-  if ((c.studentIds || []).some(id => !a.marks?.[id]?.st)) out.push("学生考勤");
+  // once saved, a student added to the class later does not reopen an old session
+  const mk = a.marks ? Object.values(a.marks) : null;
+  if ((c.studentIds || []).length && (!mk || mk.some(m => !m.st) || !mk.some(m => m.st))) out.push("学生考勤");
   return out;
 }
 function attPill(c) {
@@ -3678,8 +3690,7 @@ function viewMy() {
     <div>${days.map(d => { const cs = mine.filter(c => c.date === d).sort(byStart), h = holidayOn(d); return `
       <div class="day ${d === t ? "today" : ""}"><div class="d">${wd(d)}<small>${d.slice(5)}</small>${h ? `<small class="holname${h.off ? "" : " open"}">${esc(h.name)}</small>` : ""}</div>
       <div class="clslist">${cs.map(c => tSessCard(c)).join("") || `<span class="muted">—</span>`}</div></div>`; }).join("")}</div>
-  </section>
-  ${groupPanel(groupsOf(tid).filter(g => g.on || g.last.date >= addDays(t, -30)), "我的班级", false)}`;
+  </section>`;
 }
 
 function groupPanel(gs, title, withT) {
@@ -3687,10 +3698,10 @@ function groupPanel(gs, title, withT) {
     ${gs.length ? `<div class="tablewrap"><table><thead><tr><th>${L("班级")}</th>${withT ? `<th>${L("老师")}</th>` : ""}<th>${L("上课时间")}</th><th>${L("教学点")}</th><th>${L("学生")}</th><th>${L("已上")}</th><th>${L("成绩单")}</th></tr></thead><tbody>
     ${gs.map(g => { const gd = gradeDoc(g), filled = gd ? Object.values(gd.vals || {}).filter(v => Object.values(v || {}).some(x => x !== null && x !== "")).length : 0; return `<tr class="click" data-grade="${esc(g.id)}"><td class="nm"><b>${esc(g.label)}</b>${g.on ? "" : ` <span class="pill st-暂停">${L("已结束")}</span>`}</td>${withT ? `<td>${esc(tLabel(g.first))}</td>` : ""}<td>${esc(g.when)}</td><td>${esc(lname(locOf(g.first.locationId)) || "—")}${roomName(g.first) ? ` · ${esc(roomName(g.first))}` : ""}</td><td>${g.sids.size}</td><td>${esc(L("{0} / {1} 节", g.done, g.sess.length))}</td><td>${filled ? `<span class="pill st-上课中">${esc(L("已填 {0} 人", filled))}</span>` : `<span class="muted">${L("还没填")}</span>`}</td></tr>`; }).join("")}
     </tbody></table></div>` : `<div class="empty">${L("还没有班级")}</div>`}
-    <p class="muted" style="margin:0;font-size:12.5px">${L("点一个班打开成绩单：期中、期末的笔试和口语，还可以自己加列。出勤和作业平均分会从考勤里自动算。")}</p>
+    <p class="muted" style="margin:0;font-size:12.5px">${L("点一个班：加减学生、填成绩单（期中、期末的笔试和口语，还可以自己加列）、看每节课的考勤记录。")}</p>
   </section>`;
 }
-const viewGradeList = tid => tid ? groupPanel(groupsOf(tid), "成绩", false) : `<div class="banner">${L("这个老师账号还没有连到老师名单，请联系总管理员。")}</div>`;
+const viewGradeList = tid => tid ? groupPanel(groupsOf(tid), "我的班级", false) : `<div class="banner">${L("这个老师账号还没有连到老师名单，请联系总管理员。")}</div>`;
 
 // attendance list: past and today's sessions, newest first; "没填完" shows only the ones still missing something
 function viewAtt(tid, withT) {
@@ -3718,7 +3729,7 @@ function viewTAtt() {
 function attForm(c) {
   const a0 = attOf(c.id) || {}, me = isTch();
   if (me && c.teacherId !== myTid() && a0.teacherId !== myTid()) return toast(L("这不是你的课"));
-  const tidW = a0.teacherId || (me ? myTid() : c.teacherId || ""), future = c.date > today(), loc = locOf(c.locationId);
+  const tidW = a0.teacherId || (me ? myTid() : c.teacherId || ""), future = c.date > today(), loc = locOf(c.locationId), canAdd = !me || c.teacherId === myTid();
   const ph = { photoStart: a0.photoStart || "", photoEnd: a0.photoEnd || "", photoStartAt: a0.photoStartAt || "", photoEndAt: a0.photoEndAt || "" };
   const ids = [...new Set([...(c.studentIds || []), ...Object.keys(a0.marks || {}).filter(id => stu(id))])];
   const base = () => ({ teacherId: tidW, sessionId: c.id, courseId: c.courseId || "", date: c.date, start: c.start || "", end: c.end || "", level: c.level || "", title: c.title || "", locationId: c.locationId || "", updatedAt: new Date().toISOString(), updatedBy: S.acct?.id || "" });
@@ -3735,7 +3746,8 @@ function attForm(c) {
     <div class="muted" style="font-size:13.5px"><b style="color:var(--fg)">${esc(cname(c) || L("课程"))}</b> · ${esc(tLabel(c))}${loc ? ` · ${esc(lname(loc))}` : ""}${roomName(c) ? ` · ${esc(roomName(c))}` : ""}</div>
     ${future ? `<div class="banner" style="margin:0">${L("这节课还没到，上课当天才能登记考勤。")}</div>` : ""}
     <div class="attphs" id="attphs">${photoBox("photoStart")}${photoBox("photoEnd")}</div>
-    <div class="panel"><div class="row"><h3>${L("学生考勤和作业")}</h3><span class="muted">${esc(L("{0} 名学生", ids.length))}</span><span class="spacer"></span>${future || !ids.length ? "" : `<button type="button" class="btn small" data-allp>${L("全部到")}</button>`}</div>
+    <div class="panel"><div class="row"><h3>${L("学生考勤和作业")}</h3><span class="muted">${esc(L("{0} 名学生", ids.length))}</span><span class="spacer"></span>${future || !ids.length ? "" : `<button type="button" class="btn small" data-allp>${L("全部到")}</button>`}${canAdd ? `<button type="button" class="btn small" data-saopen>${L("＋ 加学生")}</button>` : ""}</div>
+      ${canAdd ? stuAdderHtml() : ""}
       <div class="grid2">
         <label class="f">${L("今天的作业")}<input name="hwTitle" value="${esc(a0.hwTitle || "")}" placeholder="${L("例：第 5 课练习册")}"></label>
         <label class="f">${L("作业满分")}<input name="hwTotal" type="number" min="1" step="1" inputmode="numeric" value="${esc(a0.hwTotal ?? 100)}"></label>
@@ -3745,7 +3757,13 @@ function attForm(c) {
     </div>
     ${a0.updatedAt ? `<p class="muted" style="margin:0;font-size:12px">${esc(L("最后修改：{0} · {1}", fmtTime(a0.updatedAt), a0.updatedBy || ""))}</p>` : ""}
   </form>`);
-  if (future) el.querySelectorAll("#attform input, #attform textarea, #attform [data-st]").forEach(x => x.disabled = true);
+  if (future) el.querySelectorAll("#attform input:not(.sa), #attform textarea, #attform [data-st]").forEach(x => x.disabled = true);
+  if (canAdd) wireAdder(el, () => ids, c, async sid => {
+    await setInClass([c], sid, true); ids.push(sid);
+    const list = $(".attlist", el); if (!list.querySelector(".attstu")) list.innerHTML = "";
+    list.insertAdjacentHTML("beforeend", row(sid)); if (future) list.lastElementChild.querySelectorAll("input, [data-st]").forEach(x => x.disabled = true);
+    toast(L("已加进这个班：{0}", sname(stu(sid))));
+  });
   el.addEventListener("click", e => {
     if (e.target.closest("[data-close]")) closeSheet();
     const b = e.target.closest("[data-st]"); if (b && !future) { const on = b.getAttribute("aria-pressed") !== "true"; b.parentElement.querySelectorAll("[data-st]").forEach(x => x.setAttribute("aria-pressed", "false")); b.setAttribute("aria-pressed", String(on)); }
@@ -3779,42 +3797,110 @@ function attForm(c) {
   });
 }
 
+// adding or removing a student changes the whole class for a repeating class (and any session that has its own list), or the one-off class itself
+async function setInClass(sess, sid, add) {
+  const now = new Date().toISOString(), up = list => { const x = new Set(list || []); if (add) x.add(sid); else x.delete(sid); return { studentIds: [...x], updatedAt: now, updatedBy: S.acct?.id || "" }; };
+  for (const kid of new Set(sess.map(c => c.courseId).filter(Boolean))) { const k = S.courses.find(x => x.id === kid); if (k) await S.db.collection("courses").doc(kid).update(up(k.studentIds)); }
+  for (const c of sess) { const d = S.classes.find(x => x.id === c.id); if (d && (!c.courseId || d.studentIds)) await S.db.collection("classes").doc(c.id).update(up(d.studentIds)); }
+}
+const stuAdderHtml = () => `<div class="stuadd" hidden>
+  <input class="sa sasearch" placeholder="${L("搜学生：名字、学号或电话")}" autocomplete="off">
+  <div class="sares"></div>
+  <details class="sanew"><summary>${L("没找到？登记新学生")}</summary>
+    <div class="grid2" style="margin-top:8px">
+      <label class="f">${L("中文名")}<input class="sa" data-sf="nameZh"></label>
+      <label class="f">${L("西语名 / Nombre")}<input class="sa" data-sf="nameEs"></label>
+      <label class="f">${L("学生电话")}<input class="sa" data-sf="phone" inputmode="tel"></label>
+      <label class="f">${L("性别")}<select class="sa" data-sf="gender">${opts(["", "男", "女"], "")}</select></label>
+      <label class="f">${L("出生日期")}<input class="sa" data-sf="birth" type="date"></label>
+      <label class="f">${L("学生邮箱")}<input class="sa" data-sf="email" type="email"></label>
+      <label class="f">${L("家长姓名")}<input class="sa" data-sf="pname"></label>
+      <label class="f">${L("家长电话")}<input class="sa" data-sf="pphone" inputmode="tel"></label>
+    </div>
+    <div class="row" style="margin-top:8px"><span class="muted" style="font-size:12.5px">${L("办公室之后会补全其他资料。")}</span><span class="spacer"></span><button type="button" class="btn small primary" data-sanew>${L("登记并加进这个班")}</button></div>
+  </details></div>`;
+// the search-or-register box inside a class or attendance sheet; `has` gives the students already in, `cls` the class (for level and 教学点)
+function wireAdder(el, has, cls, onAdd) {
+  const box = $(".stuadd", el), q = $(".sasearch", box), res = $(".sares", box);
+  const show = () => { const k = q.value.trim().toLowerCase(); if (!k) { res.innerHTML = ""; return; }
+    const m = S.students.filter(x => !has().includes(x.id) && x.status !== "不上课了" && [x.nameZh, x.nameEs, x.code, x.phone].some(v => (v || "").toLowerCase().includes(k))).slice(0, 8);
+    res.innerHTML = m.map(x => `<div class="row sarow">${avatar(x)}<b>${esc(sname(x))}</b><span class="muted" style="font-size:12px">${esc([x.code, x.level].filter(Boolean).join(" · "))}</span><span class="spacer"></span><button type="button" class="btn small" data-saadd="${x.id}">${L("加进来")}</button></div>`).join("") || `<span class="muted" style="font-size:13px">${L("没有找到，可以在下面登记新学生")}</span>`; };
+  q.addEventListener("input", show);
+  el.addEventListener("click", async e => {
+    if (e.target.closest("[data-saopen]")) { box.hidden = !box.hidden; if (!box.hidden) q.focus(); return; }
+    const a = e.target.closest("[data-saadd]"); if (a) { a.disabled = true; try { await onAdd(a.dataset.saadd); show(); } catch (err) { a.disabled = false; toast(L("保存失败：{0}", err?.message || err?.code || err)); } return; }
+    const nb = e.target.closest("[data-sanew]"); if (!nb) return;
+    const f = Object.fromEntries([...box.querySelectorAll("[data-sf]")].map(i => [i.dataset.sf, i.value.trim()]));
+    if (!f.nameZh && !f.nameEs) return toast(L("请至少填写一个名字"));
+    const now = new Date().toISOString(), id = newId("students");
+    const d = { nameZh: f.nameZh, nameEs: f.nameEs, phone: f.phone, email: f.email, gender: f.gender, birth: f.birth, parents: f.pname || f.pphone ? [{ name: f.pname, phone: f.pphone, relation: "其他" }] : [], status: "上课中", level: cls.level || "", locationId: cls.locationId || "", code: nextCode(), regDate: today(), note: L("老师登记：{0}", S.acct?.name || S.acct?.id || ""), createdAt: now, createdBy: S.acct?.id || "" };
+    nb.disabled = true;
+    try { await S.db.collection("students").doc(id).set(d); if (!stu(id)) S.students = [...S.students, { id, ...d }]; await onAdd(id); box.querySelectorAll("[data-sf]").forEach(i => { i.value = ""; }); $(".sanew", box).open = false; }
+    catch (err) { toast(L("保存失败：{0}", err?.message || err?.code || err)); }
+    nb.disabled = false;
+  });
+}
+
+// one class: its students (add, remove), the grade sheet, and every session's attendance at a glance
 function gradesForm(g) {
   if (isTch() && g.teacherId !== myTid()) return toast(L("这不是你的课"));
+  const t = today(), canEdit = !isTch() || g.teacherId === myTid();
   const doc = gradeDoc(g) || {}, cols = (doc.cols || GRADE_COLS).map(x => ({ ...x })), vals = JSON.parse(JSON.stringify(doc.vals || {})), notes = { ...(doc.notes || {}) };
-  const ids = [...new Set([...g.sids, ...Object.keys(vals).filter(id => stu(id))])].sort((a, b) => sname(stu(a)).localeCompare(sname(stu(b)), "zh"));
-  const stats = Object.fromEntries(ids.map(id => [id, stuStats(g.sess.filter(c => c.date <= today()), id)]));
-  const el = openSheet(`<div style="display:grid;gap:12px">
-    <div class="row"><h2>${L("成绩单")}</h2><span class="muted">${esc(g.label)} · ${esc(tLabel(g.first))}</span><span class="spacer"></span><button type="button" class="btn" data-close>${L("关闭")}</button><button type="button" class="btn" data-gcsv>${L("导出表格")}</button><button type="button" class="btn primary" data-gsave>${L("保存")}</button></div>
-    <div class="muted" style="font-size:13px">${esc(g.when)} · ${esc(L("{0} 名学生", ids.length))} · ${esc(L("已上 {0} / {1} 节", g.done, g.sess.length))}</div>
-    <div class="tablewrap" id="gtable"></div>
-    <div class="row" style="gap:8px"><span class="muted" style="font-size:13px">${L("加一列：")}</span><input id="gcname" placeholder="${L("例：小测验 1")}" style="width:12em"><input id="gcmax" type="number" min="1" value="100" style="width:6em" aria-label="${L("满分")}"><button type="button" class="btn small" data-gadd>${L("＋ 加一列")}</button></div>
-    <p class="muted" style="margin:0;font-size:12.5px">${L("出勤是“到 + 迟到”的次数 / 已登记的次数；作业平均按百分制算。这两列从考勤自动来，不用填。")}</p>
-    ${doc.updatedAt ? `<p class="muted" style="margin:0;font-size:12px">${esc(L("最后修改：{0} · {1}", fmtTime(doc.updatedAt), doc.updatedBy || ""))}</p>` : ""}
+  const byN = (a, b) => sname(stu(a)).localeCompare(sname(stu(b)), "zh");
+  // students now in the class first; those who left but already have grades stay at the bottom
+  let ids = [...g.sids].filter(id => stu(id)).sort(byN);
+  const gone = () => Object.keys(vals).filter(id => stu(id) && !ids.includes(id) && (Object.values(vals[id] || {}).some(v => v != null) || notes[id])).sort(byN);
+  const past = g.sess.filter(c => c.date <= t), stat = id => stuStats(past, id);
+  // the sessions a change reaches: the ones still to come (or the last one, for a class that has ended)
+  const ahead = () => { const f = g.sess.filter(c => c.date >= t); return f.length ? f : [g.last]; };
+  const el = openSheet(`<div style="display:grid;gap:14px">
+    <div class="row"><h2>${esc(g.label)}</h2><span class="muted">${esc(tLabel(g.first))}</span><span class="spacer"></span><button type="button" class="btn" data-close>${L("关闭")}</button><button type="button" class="btn" data-gcsv>${L("导出表格")}</button><button type="button" class="btn primary" data-gsave>${L("保存成绩")}</button></div>
+    <div class="muted" style="font-size:13px">${esc(g.when)}${locOf(g.first.locationId) ? ` · ${esc(lname(locOf(g.first.locationId)))}` : ""} · ${esc(L("已上 {0} / {1} 节", g.done, g.sess.length))}</div>
+    <div class="panel"><div class="row"><h3>${L("学生")}</h3><span class="muted" id="gscount"></span><span class="spacer"></span>${canEdit ? `<button type="button" class="btn small primary" data-saopen>${L("＋ 加学生")}</button>` : ""}</div>
+      ${canEdit ? stuAdderHtml() : ""}<div class="schips" id="gstu"></div></div>
+    <div class="panel"><div class="row"><h3>${L("成绩单")}</h3></div>
+      <div class="tablewrap" id="gtable"></div>
+      <div class="row" style="gap:8px"><span class="muted" style="font-size:13px">${L("加一列：")}</span><input id="gcname" placeholder="${L("例：小测验 1")}" style="width:12em"><input id="gcmax" type="number" min="1" value="100" style="width:6em" aria-label="${L("满分")}"><button type="button" class="btn small" data-gadd>${L("＋ 加一列")}</button></div>
+      <p class="muted" style="margin:0;font-size:12.5px">${L("出勤是“到 + 迟到”的次数 / 已登记的次数；作业平均按百分制算。这两列从考勤自动来，不用填。")}</p>
+      ${doc.updatedAt ? `<p class="muted" style="margin:0;font-size:12px">${esc(L("最后修改：{0} · {1}", fmtTime(doc.updatedAt), doc.updatedBy || ""))}</p>` : ""}</div>
+    <div class="panel"><div class="row"><h3>${L("考勤记录")}</h3><span class="muted" style="font-size:12.5px">${L("✓ 到 · 迟 迟到 · ✗ 缺课 · 假 请假，数字是作业分。点日期打开那节课。")}</span></div><div class="tablewrap" id="gatt"></div></div>
   </div>`);
   const grab = () => el.querySelectorAll("[data-gc]").forEach(i => { const v = i.value.trim(); (vals[i.dataset.gs] ||= {})[i.dataset.gc] = v === "" ? null : Number(v); });
   const grabN = () => el.querySelectorAll("[data-gn]").forEach(i => { notes[i.dataset.gn] = i.value.trim(); });
+  const rows = () => [...ids, ...gone()];
   const draw = () => {
+    $("#gscount", el).textContent = L("{0} 名", ids.length);
+    $("#gstu", el).innerHTML = ids.map(id => `<span class="schip">${avatar(stu(id))}${esc(sname(stu(id)))}${canEdit ? `<button type="button" class="gx" data-srm="${id}" title="${L("移出这个班")}" aria-label="${L("移出这个班")}">×</button>` : ""}</span>`).join("") || `<span class="muted">${L("这个班还没有学生")}</span>`;
     $("#gtable", el).innerHTML = `<table class="gtab"><thead><tr><th>${L("学生")}</th><th>${L("出勤")}</th><th>${L("作业平均")}</th>${cols.map((x, i) => `<th>${esc(L(x.name))} <span class="muted">/${+x.max}</span> <button type="button" class="gx" data-gdel="${i}" title="${L("删除这一列")}" aria-label="${L("删除这一列")}">×</button></th>`).join("")}<th>${L("评语")}</th></tr></thead><tbody>
-      ${ids.map(id => { const st = stats[id]; return `<tr><td class="nm"><b>${esc(sname(stu(id)))}</b></td><td>${st.rec ? `${st.here}/${st.rec}` : "—"}</td><td>${st.hw == null ? "—" : fmtH(Math.round(st.hw * 10) / 10)}</td>${cols.map(x => `<td><input type="number" min="0" max="${+x.max}" step="0.5" inputmode="decimal" data-gs="${id}" data-gc="${esc(x.id)}" value="${esc(vals[id]?.[x.id] ?? "")}"></td>`).join("")}<td><input data-gn="${id}" value="${esc(notes[id] || "")}"></td></tr>`; }).join("") || `<tr><td colspan="${cols.length + 4}" class="muted">${L("这个班还没有学生")}</td></tr>`}
+      ${rows().map(id => { const st = stat(id); return `<tr><td class="nm"><b>${esc(sname(stu(id)))}</b>${ids.includes(id) ? "" : ` <span class="pill st-暂停">${L("已不在班")}</span>`}</td><td>${st.rec ? `${st.here}/${st.rec}` : "—"}</td><td>${st.hw == null ? "—" : fmtH(Math.round(st.hw * 10) / 10)}</td>${cols.map(x => `<td><input type="number" min="0" max="${+x.max}" step="0.5" inputmode="decimal" data-gs="${id}" data-gc="${esc(x.id)}" value="${esc(vals[id]?.[x.id] ?? "")}"></td>`).join("")}<td><input data-gn="${id}" value="${esc(notes[id] || "")}"></td></tr>`; }).join("") || `<tr><td colspan="${cols.length + 4}" class="muted">${L("这个班还没有学生")}</td></tr>`}
     </tbody></table>`;
+    const ss = past.slice(-20), sym = { p: "✓", l: "迟", a: "✗", x: "假" };
+    $("#gatt", el).innerHTML = ss.length ? `<table class="gatt"><thead><tr><th>${L("学生")}</th>${ss.map(c => `<th><button type="button" class="linkbtn" data-gatt="${esc(c.id)}">${esc(c.date.slice(5))}</button></th>`).join("")}</tr></thead><tbody>
+      ${rows().map(id => `<tr><td class="nm">${esc(sname(stu(id)))}</td>${ss.map(c => { const a = attOf(c.id), m = a?.marks?.[id]; return `<td class="ga-${m?.st || "n"}">${m?.st ? sym[m.st] : (c.studentIds || []).includes(id) ? "·" : ""}${m?.hw != null && m.hw !== "" ? `<small>${esc(m.hw)}</small>` : ""}</td>`; }).join("")}</tr>`).join("")}
+    </tbody></table>` : `<span class="muted">${L("还没有上过课")}</span>`;
   };
   draw();
+  if (canEdit) wireAdder(el, () => ids, g.k || g.first, async sid => { await setInClass(ahead(), sid, true); grab(); grabN(); if (!ids.includes(sid)) ids = [...ids, sid].sort(byN); draw(); toast(L("已加进这个班：{0}", sname(stu(sid)))); });
   const saveG = async () => {
     grab(); grabN();
-    for (const id of ids) for (const x of cols) { const v = vals[id]?.[x.id]; if (v != null && (!(v >= 0) || v > +x.max)) { toast(L("{0} 的“{1}”要在 0 到 {2} 之间", sname(stu(id)), L(x.name), +x.max)); return false; } }
+    for (const id of rows()) for (const x of cols) { const v = vals[id]?.[x.id]; if (v != null && (!(v >= 0) || v > +x.max)) { toast(L("{0} 的“{1}”要在 0 到 {2} 之间", sname(stu(id)), L(x.name), +x.max)); return false; } }
     const now = new Date().toISOString(), d = { teacherId: g.teacherId, key: g.key, courseId: g.courseId, label: g.label, cols, vals, notes, updatedAt: now, updatedBy: S.acct?.id || "", createdAt: doc.createdAt || now };
     try { await S.db.collection("grades").doc(g.id).set(d); toast(L("成绩已保存")); return true; } catch (err) { toast(L("保存失败：{0}", err?.message || err?.code || err)); return false; }
   };
   el.addEventListener("click", async e => {
     if (e.target.closest("[data-close]")) closeSheet();
-    const dl = e.target.closest("[data-gdel]"); if (dl) { grab(); grabN(); const x = cols[+dl.dataset.gdel]; confirmBox(L("删除这一列"), L("删除“{0}”这一列？保存后才会生效。", L(x.name)), () => { cols.splice(+dl.dataset.gdel, 1); draw(); }); }
+    const ga = e.target.closest("[data-gatt]"); if (ga) { const c = g.sess.find(x => x.id === ga.dataset.gatt); if (c) attForm(c); return; }
+    // removing asks once inline (a confirm box would close this sheet)
+    const rm = e.target.closest("[data-srm]"); if (rm) { const sid = rm.dataset.srm; rm.closest(".schip").outerHTML = `<span class="schip ask">${esc(L("把 {0} 移出 {1}？以前的考勤和成绩会保留。", sname(stu(sid)), g.label))} <button type="button" class="btn small danger" data-srmyes="${sid}">${L("移出")}</button><button type="button" class="btn small" data-srmno>${L("取消")}</button></span>`; return; }
+    if (e.target.closest("[data-srmno]")) { grab(); grabN(); draw(); return; }
+    const ry = e.target.closest("[data-srmyes]"); if (ry) { const sid = ry.dataset.srmyes; ry.disabled = true; try { await setInClass(ahead(), sid, false); grab(); grabN(); ids = ids.filter(x => x !== sid); draw(); toast(L("已移出")); } catch (err) { ry.disabled = false; toast(L("保存失败：{0}", err?.message || err?.code || err)); } return; }
+    const dl = e.target.closest("[data-gdel]"); if (dl) { grab(); grabN(); const x = cols.splice(+dl.dataset.gdel, 1)[0]; draw(); toast(L("已删除“{0}”这一列，点“保存成绩”后生效", L(x.name))); }
     if (e.target.closest("[data-gadd]")) { const n = $("#gcname", el).value.trim(), mx = Number($("#gcmax", el).value) || 100; if (!n) return $("#gcname", el).focus(); grab(); grabN(); cols.push({ id: "c" + Date.now().toString(36), name: n, max: mx }); $("#gcname", el).value = ""; draw(); }
     const sb = e.target.closest("[data-gsave]"); if (sb) { sb.disabled = true; if (await saveG()) closeSheet(); else sb.disabled = false; }
     if (e.target.closest("[data-gcsv]")) {
       grab(); grabN(); if (!S.downloads) return toast(L("这个环境不支持下载文件"));
-      const rows = [[L("学生"), L("出勤"), L("作业平均"), ...cols.map(x => `${L(x.name)} /${+x.max}`), L("评语")], ...ids.map(id => { const st = stats[id]; return [sname(stu(id)), st.rec ? `${st.here}/${st.rec}` : "", st.hw == null ? "" : Math.round(st.hw * 10) / 10, ...cols.map(x => vals[id]?.[x.id] ?? ""), notes[id] || ""]; })];
-      const csv = "﻿" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+      const out = [[L("学生"), L("出勤"), L("作业平均"), ...cols.map(x => `${L(x.name)} /${+x.max}`), L("评语")], ...rows().map(id => { const st = stat(id); return [sname(stu(id)), st.rec ? `${st.here}/${st.rec}` : "", st.hw == null ? "" : Math.round(st.hw * 10) / 10, ...cols.map(x => vals[id]?.[x.id] ?? ""), notes[id] || ""]; })];
+      const csv = "﻿" + out.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
       try { await S.downloads.save({ filename: `${L("成绩单")}_${g.label.replace(/[\\/:*?"<>|]/g, "")}_${today()}.csv`, data: csv }); } catch (err) { if (err?.code !== "declined") toast(L("导出失败：{0}", err?.message || err?.code)); }
     }
   });
@@ -3882,6 +3968,7 @@ function tPortalClick(t) {
 }
 
 Object.assign(ES, {"考勤完成": "Asistencia completa", "缺：{0}": "Falta: {0}", "这个老师账号还没有连到老师名单，请联系总管理员。": "Esta cuenta de profesor aún no está vinculada a la lista de profesores. Contacta al administrador general.", "{0}，你好": "Hola, {0}", "最近 30 天还有 {0} 节课的考勤没填完。": "En los últimos 30 días hay {0} clases con la asistencia incompleta.", "去填考勤": "Completar asistencia", "今天的课": "Clases de hoy", "今天没有课": "Hoy no tienes clases", "点一节课就能登记考勤：上课时拍一张照片，下课时再拍一张，再给每个学生点到、填作业分。": "Toca una clase para registrar la asistencia: una foto al empezar, otra al terminar, y marca a cada estudiante con su nota de tarea.", "我的课表": "Mi horario", "已上": "Dadas", "成绩单": "Libreta de notas", "{0} / {1} 节": "{0} / {1} clases", "已填 {0} 人": "{0} con notas", "还没填": "Sin notas", "点一个班打开成绩单：期中、期末的笔试和口语，还可以自己加列。出勤和作业平均分会从考勤里自动算。": "Toca un grupo para abrir la libreta: parcial y final, escrito y oral, y puedes añadir columnas. La asistencia y el promedio de tareas salen solos de la asistencia.", "考勤": "Asistencia", "最近 {0} 天": "Últimos {0} días", "没填完": "Incompletas", "看更早的": "Ver anteriores", "老师考勤": "Asistencia docente", "老师用自己的“老师”账号登录后登记：上课和下课各拍一张照片，每个学生点到、填作业分。在“管理人员”页给老师开账号，权限选“老师”。": "Cada profesor entra con su propia cuenta de «Profesor» y registra una foto al empezar y otra al terminar, la asistencia y la nota de tarea. Crea sus cuentas en «Personal», con el permiso «Profesor».", "这不是你的课": "Esta clase no es tuya", "上传于 {0}": "Subida el {0}", "作业分": "Nota de tarea", "这节课还没到，上课当天才能登记考勤。": "Esta clase aún no llega. La asistencia se registra el mismo día.", "学生考勤和作业": "Asistencia y tareas", "全部到": "Todos presentes", "今天的作业": "Tarea de hoy", "例：第 5 课练习册": "Ej.: cuaderno, lección 5", "作业满分": "Nota máxima de la tarea", "这节课还没有学生": "Esta clase aún no tiene estudiantes", "上课内容（可不填）": "Contenido de la clase (opcional)", "最后修改：{0} · {1}": "Última modificación: {0} · {1}", "上传中…": "Subiendo…", "照片已保存": "Foto guardada", "作业分要在 0 到 {0} 之间": "La nota de tarea debe estar entre 0 y {0}", "导出表格": "Exportar tabla", "已上 {0} / {1} 节": "Dadas {0} de {1} clases", "加一列：": "Añadir columna:", "例：小测验 1": "Ej.: Prueba 1", "＋ 加一列": "＋ Añadir columna", "出勤是“到 + 迟到”的次数 / 已登记的次数；作业平均按百分制算。这两列从考勤自动来，不用填。": "Asistencia = presentes + atrasos / clases registradas; el promedio de tareas va sobre 100. Estas dos columnas se calculan solas.", "出勤": "Asistencia", "作业平均": "Promedio de tareas", "删除这一列": "Eliminar columna", "评语": "Comentario", "这个班还没有学生": "Este grupo aún no tiene estudiantes", "{0} 的“{1}”要在 0 到 {2} 之间": "«{1}» de {0} debe estar entre 0 y {2}", "删除“{0}”这一列？保存后才会生效。": "¿Eliminar la columna «{0}»? Se aplica al guardar.", "我的学生": "Mis estudiantes", "{0} 名": "{0}", "你的班里还没有学生": "Tus grupos aún no tienen estudiantes", "点学生可以补充或修改联系方式和照片。新学生报名、换班请联系办公室。": "Toca un estudiante para completar sus datos de contacto o su foto. Para inscripciones nuevas o cambios de grupo, contacta a la oficina.", "老师备注": "Notas del profesor", "例：学习情况、需要注意的地方": "Ej.: cómo avanza, cosas a tener en cuenta", "老师（只看自己的课）": "Profesor (solo sus clases)", "是哪位老师": "¿Qué profesor es?", "老师账号只能看到自己的课、学生、考勤和成绩，看不到付款和其他页面。": "Una cuenta de profesor solo ve sus clases, estudiantes, asistencia y notas; no ve pagos ni otras páginas.", "请选择这个账号对应的老师": "Elige el profesor de esta cuenta", "未连到老师": "Sin profesor vinculado", "只能修改自己的时段": "Solo puedes cambiar tus propios horarios", "到": "Presente", "迟到": "Atraso", "缺课": "Falta", "请假": "Permiso", "期中笔试": "Parcial escrito", "期中口语": "Parcial oral", "期末笔试": "Final escrito", "期末口语": "Final oral", "上课照片": "Foto de inicio", "下课照片": "Foto de cierre", "学生考勤": "asistencia", "上课": "Inicio", "下课": "Cierre", "已保存，还差上课或下课照片": "Guardado. Falta la foto de inicio o de cierre", "考勤已保存": "Asistencia guardada", "都填完了 ✓": "Todo completo ✓", "这段时间没有课": "No hay clases en este periodo", "上课开始时拍一张全班照片": "Al empezar, toma una foto de toda la clase", "下课时再拍一张": "Al terminar, toma otra", "换一张": "Cambiar foto", "拍照 / 选照片": "Tomar / elegir foto", "还没有照片": "Sin foto", "学生资料": "Datos del estudiante", "{0} 名学生": "{0} estudiantes", "{0} 个班": "{0} grupos", "上课时间": "Horario", "还没有班级": "Aún no hay grupos", "我的班级": "Mis grupos", "未定老师": "Sin profesor", "老师": "Profesor"});
+Object.assign(ES, {"点一个班：加减学生、填成绩单（期中、期末的笔试和口语，还可以自己加列）、看每节课的考勤记录。": "Toca un grupo para añadir o quitar estudiantes, llenar la libreta de notas (parcial y final, escrito y oral, con columnas propias) y ver la asistencia de cada clase.", "＋ 加学生": "＋ Añadir estudiante", "已加进这个班：{0}": "Añadido al grupo: {0}", "搜学生：名字、学号或电话": "Buscar: nombre, código o teléfono", "没找到？登记新学生": "¿No está? Inscribir estudiante nuevo", "家长姓名": "Nombre del representante", "家长电话": "Teléfono del representante", "办公室之后会补全其他资料。": "La oficina completará el resto de datos.", "登记并加进这个班": "Inscribir y añadir al grupo", "加进来": "Añadir", "没有找到，可以在下面登记新学生": "No se encontró; puedes inscribirlo abajo", "老师登记：{0}": "Inscrito por el profesor: {0}", "保存成绩": "Guardar notas", "学生": "Estudiantes", "考勤记录": "Registro de asistencia", "✓ 到 · 迟 迟到 · ✗ 缺课 · 假 请假，数字是作业分。点日期打开那节课。": "✓ presente · 迟 atraso · ✗ falta · 假 permiso; el número es la nota de tarea. Toca una fecha para abrir esa clase.", "移出这个班": "Quitar del grupo", "已不在班": "Ya no está", "还没有上过课": "Aún no hay clases", "把 {0} 移出 {1}？以前的考勤和成绩会保留。": "¿Quitar a {0} de {1}? Su asistencia y notas anteriores se conservan.", "已移出": "Quitado", "移出": "Quitar", "已删除“{0}”这一列，点“保存成绩”后生效": "Columna «{0}» eliminada; se aplica al guardar las notas"});
 /* ---------- CSV ---------- */
 async function exportCsv() {
   const head = ["中文名", "西语名 / Nombre", "学号", "C.I. / 护照号", "所属教学点", "状态", "级别", "性别", "出生日期", "登记日期", "电话", "邮箱", "地址", "家长1", "家长1电话", "家长1地址", "家长2", "家长2电话", "最近上课", "下次上课", "欠费", "HSK"].map(k => L(k));
