@@ -215,7 +215,8 @@ html.fb [data-gsimport], html.fb [data-regimport], html.fb [data-webpull] { disp
 .gtab input { width: 5.5em } .gtab td:last-child input { width: 12em }
 .gtab .gx { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 14px } .gtab .gx:hover { color: var(--seal) }
 @media (max-width: 640px) { .attphs { grid-template-columns: 1fr 1fr; gap: 8px } .attph { padding: 8px } .attstu { grid-template-columns: 1fr 1fr } .attstu > span:first-child { grid-column: 1 / -1 } .attseg { grid-column: 1 / -1; width: 100% } .attseg button { flex: 1 } .attline { grid-template-columns: 1fr } }
-.stuadd { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--accent); border-radius: var(--r); background: color-mix(in srgb, var(--accent-soft) 45%, transparent) }
+.tstuadd[hidden] { display: none }
+.tstuadd { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--accent); border-radius: var(--r); background: color-mix(in srgb, var(--accent-soft) 45%, transparent) }
 .sarow { gap: 8px; flex-wrap: nowrap; padding: 4px 0; border-bottom: 1px solid var(--line) } .sarow b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .sanew summary { cursor: pointer; color: var(--accent); font-size: 13.5px; font-weight: 500 }
 .schips { display: flex; flex-wrap: wrap; gap: 6px }
@@ -3803,7 +3804,7 @@ async function setInClass(sess, sid, add) {
   for (const kid of new Set(sess.map(c => c.courseId).filter(Boolean))) { const k = S.courses.find(x => x.id === kid); if (k) await S.db.collection("courses").doc(kid).update(up(k.studentIds)); }
   for (const c of sess) { const d = S.classes.find(x => x.id === c.id); if (d && (!c.courseId || d.studentIds)) await S.db.collection("classes").doc(c.id).update(up(d.studentIds)); }
 }
-const stuAdderHtml = () => `<div class="stuadd" hidden>
+const stuAdderHtml = () => `<div class="tstuadd" hidden>
   <input class="sa sasearch" placeholder="${L("搜学生：名字、学号或电话")}" autocomplete="off">
   <div class="sares"></div>
   <details class="sanew"><summary>${L("没找到？登记新学生")}</summary>
@@ -3821,7 +3822,7 @@ const stuAdderHtml = () => `<div class="stuadd" hidden>
   </details></div>`;
 // the search-or-register box inside a class or attendance sheet; `has` gives the students already in, `cls` the class (for level and 教学点)
 function wireAdder(el, has, cls, onAdd) {
-  const box = $(".stuadd", el), q = $(".sasearch", box), res = $(".sares", box);
+  const box = $(".tstuadd", el), q = $(".sasearch", box), res = $(".sares", box);
   const show = () => { const k = q.value.trim().toLowerCase(); if (!k) { res.innerHTML = ""; return; }
     const m = S.students.filter(x => !has().includes(x.id) && x.status !== "不上课了" && [x.nameZh, x.nameEs, x.code, x.phone].some(v => (v || "").toLowerCase().includes(k))).slice(0, 8);
     res.innerHTML = m.map(x => `<div class="row sarow">${avatar(x)}<b>${esc(sname(x))}</b><span class="muted" style="font-size:12px">${esc([x.code, x.level].filter(Boolean).join(" · "))}</span><span class="spacer"></span><button type="button" class="btn small" data-saadd="${x.id}">${L("加进来")}</button></div>`).join("") || `<span class="muted" style="font-size:13px">${L("没有找到，可以在下面登记新学生")}</span>`; };
