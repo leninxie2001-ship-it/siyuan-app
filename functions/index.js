@@ -3,11 +3,11 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
 initializeApp();
 const auth = getAuth(), db = getFirestore();
-const ID_RE = /^[a-z0-9._-]{2,32}$/, ROLES = ["owner", "staff", "edu"];
+const ID_RE = /^[a-z0-9._-]{2,32}$/, ROLES = ["owner", "staff", "edu", "teacher"];
 const email = u => `${u}@users.siyuan.local`;
 const fail = (code, msg) => { throw new HttpsError(code, msg); };
 const checkPw = pw => { if (typeof pw !== "string" || pw.length < 6) fail("invalid-argument", "El contraseña debe tener al menos 6 caracteres / 密码至少 6 位"); };
@@ -37,13 +37,15 @@ exports.bootstrap = onCall(opts, async req => {
 // Create or change an account: name, role, on/off, and (optionally) a new password.
 exports.saveAccount = onCall(opts, async req => {
   const t = needOwner(req);
-  const { uname, isNew, name, role, active, scores, pw } = req.data || {};
+  const { uname, isNew, name, role, active, scores, pw, teacherId } = req.data || {};
   if (!ID_RE.test(uname || "")) fail("invalid-argument", "username");
   if (!ROLES.includes(role)) fail("invalid-argument", "role");
   if (pw) checkPw(pw);
+  // a teacher account is tied to one name in the teacher list: it sees that teacher's classes only
+  if (role === "teacher" && (typeof teacherId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(teacherId) || !(await db.doc(`teachers/${teacherId}`).get()).exists)) fail("invalid-argument", "Elige el profesor de esta cuenta / 请选择这个账号对应的老师");
   const ref = db.doc(`accounts/${uname}`), cur = await ref.get();
   if (isNew && cur.exists) fail("already-exists", "Ese usuario ya existe / 这个用户名已经有了");
-  const self = uname === t.uname, rl = self ? "owner" : role, on = self ? true : !!active;
+  const self = uname === t.uname, rl = self ? "owner" : role, on = self ? true : !!active, tid = rl === "teacher" ? teacherId : null;
   if (!(rl === "owner" && on)) {
     const owners = await db.collection("accounts").where("role", "==", "owner").get();
     if (!owners.docs.some(d => d.id !== uname && d.data().active !== false)) fail("failed-precondition", "Debe quedar un administrador general activo / 至少要保留一个在用的总管理员");
@@ -54,11 +56,11 @@ exports.saveAccount = onCall(opts, async req => {
     u = await auth.createUser({ email: email(uname), password: pw, displayName: name || uname, disabled: !on });
   } else await auth.updateUser(u.uid, { ...(pw ? { password: pw } : {}), displayName: name || uname, disabled: !on });
   const old = u.customClaims || {};
-  await auth.setCustomUserClaims(u.uid, { role: rl, uname, active: on });
-  // a changed role, a stop or a new password signs that person out everywhere
-  if (!self && (old.role !== rl || old.active !== on || pw)) await auth.revokeRefreshTokens(u.uid);
+  await auth.setCustomUserClaims(u.uid, { role: rl, uname, active: on, ...(tid ? { tid } : {}) });
+  // a changed role, teacher link, a stop or a new password signs that person out everywhere
+  if (!self && (old.role !== rl || old.active !== on || (old.tid || null) !== tid || pw)) await auth.revokeRefreshTokens(u.uid);
   const now = new Date().toISOString();
-  await ref.set({ name: name || uname, role: rl, active: on, scores: rl === "owner" || !!scores, uid: u.uid, updatedAt: now, ...(cur.exists ? {} : { createdAt: now, createdBy: t.uname }) }, { merge: true });
+  await ref.set({ name: name || uname, role: rl, active: on, scores: rl === "owner" || (rl !== "teacher" && !!scores), teacherId: tid || FieldValue.delete(), uid: u.uid, updatedAt: now, ...(cur.exists ? {} : { createdAt: now, createdBy: t.uname }) }, { merge: true });
   return { ok: true };
 });
 
