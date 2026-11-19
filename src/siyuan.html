@@ -1215,7 +1215,7 @@ function courseForm(k, preset) {
     <div class="panel"><h3>${L("每周上课")}</h3><div style="display:grid;gap:6px">${WDAYS.map((d, i) => { const x = sl(d); return `<div class="row" style="gap:8px"><label style="display:flex;align-items:center;gap:6px;min-width:80px;margin:0"><input type="checkbox" name="wd" style="width:auto" value="${d}" ${x ? "checked" : ""}> ${L(WDN[i])}</label><input type="time" name="ws${d}" value="${esc(x?.start || "")}" style="width:auto"> – <input type="time" name="we${d}" value="${esc(x?.end || "")}" style="width:auto"></div>`; }).join("")}</div></div>
     <div class="panel" id="kcal"></div>
     ${stuPanel()}
-    ${cancelled.length ? `<div class="panel"><h3>${L("已取消的课")}</h3><div class="row">${cancelled.map(c => `<span class="pill st-暂停">${esc(c.date)} ${esc(c.start || "")}</span><button type="button" class="btn small" data-restore="${c.id}">${L("恢复")}</button>`).join("")}</div></div>` : ""}
+    ${cancelled.length ? `<div class="panel"><h3>${L("已取消的课")}</h3><div class="row">${cancelled.map(c => `<span class="pill st-暂停" title="${esc([c.cancelReason, c.cancelledBy].filter(Boolean).join(" · "))}">${esc(c.date)} ${esc(c.start || "")}${c.cancelReason ? ` · ${esc(c.cancelReason)}` : ""}</span><button type="button" class="btn small" data-restore="${c.id}">${L("恢复")}</button>`).join("")}</div></div>` : ""}
     <label class="f">${L("备注")}<textarea name="note">${esc(k.note)}</textarea></label>
     ${isNew ? "" : `<div class="row">${S.courses.some(x => x.prevId === k.id) ? `<span class="muted" style="font-size:12.5px">${esc(L("已经开了下一级：{0}", S.courses.filter(x => x.prevId === k.id).map(cname).join("、")))}</span>` : `<button type="button" class="btn" data-nextlv>${esc(nextLevel(k.level) ? L("上完了，升到 {0}", nextLevel(k.level)) : L("上完了，开下一级"))}</button>`}<span class="spacer"></span><button type="button" class="btn small danger" data-delk>${L("删除这个班级")}</button></div>`}
   </form>`, true);
@@ -3367,7 +3367,7 @@ function classForm(c, presetStudent) {
   el.querySelector("[name=teacherId]").addEventListener("change", e => { const ls = tch(e.target.value)?.locationIds || []; const sel = el.querySelector("[name=locationId]"); if (!sel.value && ls.length === 1) sel.value = ls[0]; });
   el.addEventListener("click", e => {
     if (e.target.closest("[data-close]")) closeSheet();
-    if (e.target.closest("[data-cancelcls]")) confirmBox(L("取消这节课？"), L("这一节不会再显示在课表里，可以在班级里恢复。"), async () => { await save("classes", c.id, { courseId: c.courseId, date: c.date, start: c.start || "", cancelled: true, cancelledBy: S.acct.id, cancelledAt: new Date().toISOString() }); closeSheet(); toast(L("已取消")); });
+    if (e.target.closest("[data-cancelcls]")) cancelBox(c);
     if (e.target.closest("[data-delcls]")) confirmBox(L("删除这节课？"), `${c.date} ${c.start || ""} ${c.title || ""}`, async () => { await remove("classes", c.id); closeSheet(); toast(L("已删除")); });
     if (e.target.closest("[data-delseries]")) confirmBox(L("删除这节及之后同系列的课？"), L("之前已经上过的课会保留。"), async () => { for (const x of S.classes.filter(x => x.seriesId === c.seriesId && x.date >= c.date)) await remove("classes", x.id); closeSheet(); toast(L("已删除")); });
   });
@@ -4200,6 +4200,7 @@ function tRecordHtml(x) {
   const pastG = groupsOf(x.id).filter(g => !g.on && !g.courseId && g.sess.length > 1);
   const span = k => { const hs = (k.tHist || []).slice().sort((a, b) => a.until.localeCompare(b.until)); let from = k.start, out = []; for (const h of hs) { if (h.teacherId === x.id) out.push(`${from} – ${addDays(h.until, -1)}`); from = h.until; } if (k.teacherId === x.id) out.push(`${from} – ${k.end || ""}`); return out.join("、"); };
   const subs = CL().filter(c => c.date <= addDays(t, 60) && (c.teacherId === x.id && subOf(c) || subOf(c) === x.id)).sort((a, b) => b.date.localeCompare(a.date) || (b.start || "").localeCompare(a.start || "")).slice(0, 40);
+  const cxs = S.classes.filter(c => c.cancelled && (c.teacherId || (k => k ? tAt(k, c.date).teacherId : "")(S.courses.find(k => k.id === c.courseId))) === x.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30);
   const rqs = S.requests.filter(r => r.teacherId === x.id).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 30);
   const chg = S.courses.flatMap(k => { const hs = (k.tHist || []).slice().sort((a, b) => a.until.localeCompare(b.until)); return hs.map((h, i) => ({ k, from: h.until, a: h, b: hs[i + 1] || { teacherId: k.teacherId, teacher: k.teacher } })).filter(r => r.a.teacherId === x.id || r.b.teacherId === x.id); }).sort((p, q) => q.from.localeCompare(p.from));
   return `<div class="panel"><h3>${L("上课记录")}</h3>
@@ -4216,6 +4217,7 @@ function tRecordHtml(x) {
       ${chg.map(r => `<div class="row" style="gap:8px"><span class="muted" style="width:6.5em;flex:none">${esc(r.from)}</span><span>${esc(L("“{0}”从这天起由 {1} 换成 {2}", cname(r.k), hName(r.a), hName(r.b)))}</span>${r.a.by ? `<span class="muted" style="font-size:12px">${esc(byWho(r.a.by, r.a.at))}</span>` : ""}</div>`).join("")}
       ${subs.map(c => { const by = c.teacherId === x.id; return `<div class="row" style="gap:8px"><span class="muted" style="width:6.5em;flex:none">${esc(c.date)} ${esc(c.start || "")}</span><span class="pill ${by ? "st-上课中" : "st-待排课"}">${L(by ? "代课" : "被代")}</span><span>${esc(by ? L("替 {0} 上“{1}”", tdisp(tch(subOf(c))) || "?", cname(c)) : L("“{0}”由 {1} 代上", cname(c), tdisp(tch(c.teacherId)) || "?"))}</span>${c.subBy ? `<span class="muted" style="font-size:12px">${esc(byWho(c.subBy, c.subAt))}</span>` : ""}</div>`; }).join("")}
     </div>` : `<span class="muted">${L("没有代课或换老师的记录")}</span>`}
+    ${cxs.length ? `<h3>${L("停课记录")}</h3><div class="clslist">${cxs.map(c => { const k = S.courses.find(y => y.id === c.courseId); return `<div class="row" style="gap:8px"><span class="muted" style="width:6.5em;flex:none">${esc(c.date)} ${esc(c.start || "")}</span><span class="pill attmiss">${L("停课")}</span><span>${esc(cname(k || c) || L("课程"))}</span><span>${esc(c.cancelReason ? L("原因：{0}", c.cancelReason) : L("没写原因"))}</span>${c.cancelledBy ? `<span class="muted" style="font-size:12px">${esc(byWho(c.cancelledBy, c.cancelledAt))}</span>` : ""}</div>`; }).join("")}</div>` : ""}
     ${rqs.length ? `<h3>${L("老师的申请")}</h3><div class="tablewrap"><table><thead><tr><th>${L("课")}</th><th>${L("申请")}</th><th>${L("原因")}</th><th>${L("结果")}</th></tr></thead><tbody>${rqs.map(r => `<tr><td>${esc(r.date)} ${esc(r.start)} · ${esc(r.label)}</td><td>${L(RQ_KIND[r.kind] || r.kind)}</td><td>${esc(r.reason || "")}</td><td>${esc(rqResult(r))}${r.handledBy ? `<div class="muted" style="font-size:12px">${esc(byWho(r.handledBy, r.handledAt))}</div>` : ""}</td></tr>`).join("")}</tbody></table></div>` : ""}
   </div>`;
 }
@@ -4342,6 +4344,17 @@ function rqPanel() {
       </div></td></tr>`; }).join("")}
     </tbody></table></div></section>`;
 }
+// the office cancels one session; a reason is required and kept with it
+function cancelBox(c) {
+  const el = openSheet(`<form id="cxform" style="display:grid;gap:12px"><h2 style="margin:0">${L("取消这节课？")}</h2>
+    <p class="muted" style="margin:0">${esc(`${c.date} ${wd(c.date)} ${c.start || ""} · ${cname(c) || ""} · ${tLabel(c)}`)}</p>
+    <label class="f">${L("停课原因")}<textarea name="why" rows="2" placeholder="${L("例：老师生病、节日、学校活动")}" required></textarea></label>
+    <p class="muted" style="margin:0;font-size:12.5px">${L("这一节不会再显示在课表里，也不算上课节数，可以在班级里恢复。")}</p>
+    <div class="row"><span class="spacer"></span><button type="button" class="btn" data-close>${L("不取消")}</button><button class="btn danger">${L("确认停课")}</button></div></form>`, true);
+  el.addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(); });
+  $("#cxform", el).addEventListener("submit", async e => { e.preventDefault(); const why = e.target.why.value.trim(), btn = e.target.querySelector(".btn.danger"); if (!why) return toast(L("请写一下原因")); btn.disabled = true;
+    try { await cancelSess(c, why); closeSheet(); toast(L("已取消")); } catch { btn.disabled = false; } });
+}
 async function cancelSess(c, why) {
   const by = { cancelledBy: S.acct.id, cancelledAt: new Date().toISOString(), ...(why ? { cancelReason: why } : {}) };
   if (c._base) await save("classes", c.id, { courseId: c.courseId, date: c.date, start: c.start || "", cancelled: true, ...by });
@@ -4370,6 +4383,8 @@ const rqResult = r => r.status === "open" ? L("等待处理") : r.status === "wi
 
 Object.assign(ES, {"申请停课": "Pedir cancelar la clase", "找人代课": "Pedir reemplazo", "{0}，等待处理": "{0}, pendiente", "申请没有通过": "Solicitud no aprobada", "{0} 操作": "Hecho por {0}", "停课 / 代课": "Cancelación / reemplazo", "撤回申请": "Retirar solicitud", "原因：{0}": "Motivo: {0}", "这节课上不了？申请停课或找人代课": "¿No puedes dar esta clase? Pide cancelarla o un reemplazo", "原因": "Motivo", "例：生病、家里有事、学校有活动": "Ej.: enfermedad, asunto familiar, actividad escolar", "办公室同意以后这节课才会停或换人，结果会显示在“我的课表”最上面。": "La clase solo se cancela o cambia cuando la oficina lo aprueba; el resultado aparecerá aquí.", "提交申请": "Enviar solicitud", "已撤回": "Retirada", "请写一下原因": "Escribe el motivo", "已提交，等办公室处理": "Enviada; la oficina la revisará", "老师的申请": "Solicitudes de profesores", "{0} 条等待处理": "{0} pendientes", "课": "Clase", "申请": "Solicitud", "处理": "Acción", "这节课已经不在课表里": "Esta clase ya no está en el horario", "同意停课": "Aprobar cancelación", "选代课老师": "Elegir reemplazo", "安排": "Asignar", "回复老师（可不填）": "Respuesta al profesor (opcional)", "不同意": "Rechazar", "已停课：{0}": "Clase cancelada: {0}", "请先选代课老师": "Primero elige el reemplazo", "已安排 {0} 代课": "{0} dará la clase como reemplazo", "已处理": "Hecho", "等待处理": "Pendiente", "老师撤回了": "Retirada por el profesor", "没有同意": "Rechazada", "已停课": "Cancelada", "由 {0} 代课": "Reemplazo: {0}", "代课、换老师和停课": "Reemplazos, cambios de profesor y cancelaciones"});
 Object.assign(ES, {"我的申请": "Mis solicitudes", "办公室回复：{0}": "Respuesta de la oficina: {0}", "办公室同意以后这节课才会停或换人，结果会显示在“我的课表”最上面。": "La clase solo se cancela o cambia cuando la oficina lo aprueba; el resultado aparecerá arriba en «Mi horario»."});
+Object.assign(ES, {"停课原因": "Motivo de la cancelación", "例：老师生病、节日、学校活动": "Ej.: profesor enfermo, feriado, actividad escolar", "这一节不会再显示在课表里，也不算上课节数，可以在班级里恢复。": "Esta clase deja de aparecer en el horario y no cuenta como dada; se puede restaurar desde el grupo.", "不取消": "No cancelar", "确认停课": "Confirmar cancelación"});
+Object.assign(ES, {"停课记录": "Clases canceladas", "停课": "Cancelada", "没写原因": "Sin motivo"});
 /* ---------- CSV ---------- */
 async function exportCsv() {
   const head = ["中文名", "西语名 / Nombre", "学号", "C.I. / 护照号", "所属教学点", "状态", "级别", "性别", "出生日期", "登记日期", "电话", "邮箱", "地址", "家长1", "家长1电话", "家长1地址", "家长2", "家长2电话", "最近上课", "下次上课", "欠费", "HSK"].map(k => L(k));
