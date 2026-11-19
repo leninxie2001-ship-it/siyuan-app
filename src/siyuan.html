@@ -448,7 +448,7 @@ const ALERT_DAYS = 30;
 const LEVELS = [...Array.from({ length: 18 }, (_, i) => `Nivel ${i + 1}`), ...Array.from({ length: 6 }, (_, i) => [`HSK ${i + 1}`, `HSK ${i + 1} (individual)`]).flat(), "Curso de niños", "Curso de niños nativos", "Clases particulares"];
 // Firebase build: fb.js sets window.__FB (login, storage URLs, account functions); the claude.ai build leaves it unset
 const FB = window.__FB || null;
-const S = { db: null, assets: null, downloads: null, students: [], payments: [], classes: [], courses: [], rooms: [], holidays: [], tab: "home", q: "", stFilter: "active", weekStart: null, scores: [], groups: [], items: [], loans: [], flyer: [], leads: [], families: [], zoom: [], attendance: [], grades: [], zoompw: [], ready: { zp: false, at: false, gr: false, z: false, m: false, e: false, a: false, g: false, i: false, o: false, f: false, x: false, s: false, p: false, c: false, t: false, l: false, k: false, r: false, h: false }, accounts: [], acct: null, okKeys: new Set(), fails: 0, lockUntil: 0, teachers: [], locations: [], loc: "", tchF: "", readOnly: false, lang: "zh" };
+const S = { db: null, assets: null, downloads: null, students: [], payments: [], classes: [], courses: [], rooms: [], holidays: [], tab: "home", q: "", stFilter: "active", weekStart: null, scores: [], groups: [], items: [], loans: [], flyer: [], leads: [], families: [], zoom: [], attendance: [], grades: [], zoompw: [], requests: [], ready: { zp: false, at: false, gr: false, z: false, m: false, e: false, a: false, g: false, i: false, o: false, f: false, x: false, s: false, p: false, c: false, t: false, l: false, k: false, r: false, h: false }, accounts: [], acct: null, okKeys: new Set(), fails: 0, lockUntil: 0, teachers: [], locations: [], loc: "", tchF: "", readOnly: false, lang: "zh" };
 
 /* ---------- language ---------- */
 const ES = {
@@ -1087,7 +1087,7 @@ function viewHome() {
   const monSum = S.payments.filter(p => (p.date || "").startsWith(mon) && (!S.loc || payLocId(p) === S.loc)).reduce((a, p) => a + (Number(p.amount) || 0), 0);
   const oweN = S.students.filter(s => inLoc(s) && owe(s.id)).length;
   const todays = CL().filter(c => c.date === t && (!S.loc || c.locationId === S.loc)).sort((a, b) => (a.start || "").localeCompare(b.start || ""));
-  return `${noPay() ? "" : bakBanner() + locDuePanel()}${hyDuePanel()}
+  return `${rqPanel()}${noPay() ? "" : bakBanner() + locDuePanel()}${hyDuePanel()}
   <div class="tiles">
     <div class="tile"><b>${active}</b><span>${L("上课中的学生")}</span></div>
     <div class="tile"><b>${waiting}</b><span>${L("待排课")}</span></div>
@@ -1254,7 +1254,7 @@ function courseForm(k, preset) {
     const from = fd.get("tfrom") || today();
     if (tChanged() && from > (k.start || "")) {
       // the earlier teacher keeps the sessions before that day; a later entry never reaches past the new change
-      d.tHist = [...(k.tHist || []).map(h => ({ ...h, until: h.until > from ? from : h.until })), { teacherId: k.teacherId || "", teacher: k.teacher || "", until: from }].sort((a, b) => a.until.localeCompare(b.until));
+      d.tHist = [...(k.tHist || []).map(h => ({ ...h, until: h.until > from ? from : h.until })), { teacherId: k.teacherId || "", teacher: k.teacher || "", until: from, by: S.acct.id, at: new Date().toISOString() }].sort((a, b) => a.until.localeCompare(b.until));
     }
     const id = k.id || newId("courses"); delete d.id;
     try {
@@ -3367,7 +3367,7 @@ function classForm(c, presetStudent) {
   el.querySelector("[name=teacherId]").addEventListener("change", e => { const ls = tch(e.target.value)?.locationIds || []; const sel = el.querySelector("[name=locationId]"); if (!sel.value && ls.length === 1) sel.value = ls[0]; });
   el.addEventListener("click", e => {
     if (e.target.closest("[data-close]")) closeSheet();
-    if (e.target.closest("[data-cancelcls]")) confirmBox(L("取消这节课？"), L("这一节不会再显示在课表里，可以在班级里恢复。"), async () => { await save("classes", c.id, { courseId: c.courseId, date: c.date, start: c.start || "", cancelled: true }); closeSheet(); toast(L("已取消")); });
+    if (e.target.closest("[data-cancelcls]")) confirmBox(L("取消这节课？"), L("这一节不会再显示在课表里，可以在班级里恢复。"), async () => { await save("classes", c.id, { courseId: c.courseId, date: c.date, start: c.start || "", cancelled: true, cancelledBy: S.acct.id, cancelledAt: new Date().toISOString() }); closeSheet(); toast(L("已取消")); });
     if (e.target.closest("[data-delcls]")) confirmBox(L("删除这节课？"), `${c.date} ${c.start || ""} ${c.title || ""}`, async () => { await remove("classes", c.id); closeSheet(); toast(L("已删除")); });
     if (e.target.closest("[data-delseries]")) confirmBox(L("删除这节及之后同系列的课？"), L("之前已经上过的课会保留。"), async () => { for (const x of S.classes.filter(x => x.seriesId === c.seriesId && x.date >= c.date)) await remove("classes", x.id); closeSheet(); toast(L("已删除")); });
   });
@@ -3691,7 +3691,7 @@ function attCount(c) {
 }
 function tSessCard(c, withT) {
   const n = (c.studentIds || []).length, cnt = attCount(c), loc = locOf(c.locationId);
-  return `<div class="cls${tcStyle(c)}" data-att="${esc(c.id)}" tabindex="0"><span class="t">${esc(c.start || "")}${c.end ? "–" + esc(c.end) : ""} · ${esc(cname(c) || L("课程"))}${withT ? ` · ${esc(tLabel(c))}` : ""}${loc ? ` · ${esc(lname(loc))}` : ""}${roomName(c) ? ` · ${esc(roomName(c))}` : ""}</span><span class="s">${esc(L("{0} 名学生", n))}${cnt ? " · " + esc(cnt) : ""} ${attPill(c)}</span></div>`;
+  return `<div class="cls${tcStyle(c)}" data-att="${esc(c.id)}" tabindex="0"><span class="t">${esc(c.start || "")}${c.end ? "–" + esc(c.end) : ""} · ${esc(cname(c) || L("课程"))}${withT ? ` · ${esc(tLabel(c))}` : ""}${loc ? ` · ${esc(lname(loc))}` : ""}${roomName(c) ? ` · ${esc(roomName(c))}` : ""}</span><span class="s">${esc(L("{0} 名学生", n))}${cnt ? " · " + esc(cnt) : ""} ${attPill(c)}${c.date >= today() ? rqPill(rqOf(c.id)) : ""}</span></div>`;
 }
 const attThumbs = a => ["photoStart", "photoEnd"].map(k => a?.[k] ? `<a href="${blobUrl(a[k])}" target="_blank" rel="noopener" data-lb="${a[k]}" data-lbcap="${esc(L(k === "photoStart" ? "上课照片" : "下课照片"))}" title="${esc(L(k === "photoStart" ? "上课照片" : "下课照片") + " · " + fmtTime(a[k + "At"]))}"><img src="${blobUrl(a[k])}" alt=""></a>` : `<span class="th attnone" title="${esc(L(k === "photoStart" ? "上课照片" : "下课照片"))}">${L(k === "photoStart" ? "上课" : "下课")}</span>`).join("");
 
@@ -3736,7 +3736,7 @@ function viewMy() {
   const days = [...Array(7)].map((_, i) => addDays(S.weekStart, i)), mine = sessOf(tid), me = tch(tid);
   const now = mine.filter(c => c.date === t).sort(byStart);
   const todo = mine.filter(c => c.date < t && c.date >= addDays(t, -30) && attMissing(c).length).length;
-  return `<section class="panel">
+  return `${myRqPanel()}<section class="panel">
     <div class="row"><h2>${esc(L("{0}，你好", tdisp(me) ? L("{0}老师", tdisp(me)) : L("老师")))}</h2><span class="muted">${esc(t)} ${esc(wd(t))}</span></div>
     ${todo ? `<div class="banner row" style="margin:0"><span>${esc(L("最近 30 天还有 {0} 节课的考勤没填完。", todo))}</span><span class="spacer"></span><button class="btn small primary" data-tab="att">${L("去填考勤")}</button></div>` : ""}
     <h3>${L("今天的课")}</h3>
@@ -3814,9 +3814,11 @@ function attForm(c) {
       <div class="attlist">${ids.map(row).join("") || `<span class="muted">${L("这节课还没有学生")}</span>`}</div>
       <label class="f">${L("上课内容（可不填）")}<textarea name="lesson" rows="2">${esc(a0.lesson || "")}</textarea></label>
     </div>
+    ${me && c.teacherId === myTid() && c.date >= today() ? rqBoxHtml(c) : ""}
     ${a0.updatedAt ? `<p class="muted" style="margin:0;font-size:12px">${esc(L("最后修改：{0} · {1}", fmtTime(a0.updatedAt), a0.updatedBy || ""))}</p>` : ""}
   </form>`);
-  if (future) el.querySelectorAll("#attform input:not(.sa), #attform textarea, #attform [data-st]").forEach(x => x.disabled = true);
+  if (me && c.teacherId === myTid() && c.date >= today()) wireRq(el, c);
+  if (future) el.querySelectorAll("#attform input:not(.sa), #attform textarea:not([data-rqr]), #attform [data-st]").forEach(x => x.disabled = true);
   if (canAdd) wireAdder(el, () => ids, c, async sid => {
     await setInClass([c], sid, true); ids.push(sid);
     const list = $(".attlist", el); if (!list.querySelector(".attstu")) list.innerHTML = "";
@@ -4027,6 +4029,7 @@ function tPortalClick(t) {
   if (t.closest("[data-attmore]")) { S.attN = (S.attN || 0) + 30; render(); return true; }
   const af = t.closest("[data-attf]"); if (af) { S.attF = af.dataset.attf; render(); return true; }
   if (t.closest("[data-myprof]")) { myProfileForm(); return true; }
+  if (t.closest("[data-rqcancel],[data-rqsub],[data-rqno]")) { rqClick(t); return true; }
   const ts2 = t.closest("[data-tchst]"); if (ts2) { S.tchSt = ts2.dataset.tchst; render(); return true; }
   const tm = t.closest("[data-tchmon]"); if (tm) { S.tchMon = addMon(S.tchMon || today().slice(0, 7), +tm.dataset.tchmon); render(); return true; }
   const tp = t.closest("[data-tpage]"); if (tp) { const x = tch(tp.dataset.tpage); if (x) teacherPage(x); return true; }
@@ -4053,7 +4056,7 @@ function viewTeachers() {
   const f = S.tchSt || "在职", ws = mondayOf(today()), all = S.teachers.slice().sort(byName);
   const list = f === "all" ? all : all.filter(x => tStatus(x) === f), cnt = k => all.filter(x => tStatus(x) === k).length;
   const noAcct = FB && isOwner() ? all.filter(x => tStatus(x) !== "离职" && !tAcct(x)) : [];
-  return `<section class="panel">
+  return `${rqPanel()}<section class="panel">
     <div class="row"><h2>${L("教师")}</h2><div class="payseg" role="group">${[...T_STATUS.map(k => [k, `${L(k)} <span class="muted">${cnt(k)}</span>`]), ["all", L("全部")]].map(([k, l]) => `<button type="button" data-tchst="${k}" aria-pressed="${f === k}">${l}</button>`).join("")}</div><span class="spacer"></span>
       ${noAcct.length ? `<button class="btn" data-tacctnew>${esc(L("给 {0} 位老师开账号", noAcct.length))}</button>` : ""}<button class="btn primary" data-act="newtch">${L("＋ 添加老师")}</button></div>
     ${list.length ? `<div class="tgrid">${list.map(x => { const on = ownOn(x.id).length, h = tWeekHrs(x.id, ws); return `<div class="tcard" data-tpage="${x.id}" tabindex="0">
@@ -4197,6 +4200,7 @@ function tRecordHtml(x) {
   const pastG = groupsOf(x.id).filter(g => !g.on && !g.courseId && g.sess.length > 1);
   const span = k => { const hs = (k.tHist || []).slice().sort((a, b) => a.until.localeCompare(b.until)); let from = k.start, out = []; for (const h of hs) { if (h.teacherId === x.id) out.push(`${from} – ${addDays(h.until, -1)}`); from = h.until; } if (k.teacherId === x.id) out.push(`${from} – ${k.end || ""}`); return out.join("、"); };
   const subs = CL().filter(c => c.date <= addDays(t, 60) && (c.teacherId === x.id && subOf(c) || subOf(c) === x.id)).sort((a, b) => b.date.localeCompare(a.date) || (b.start || "").localeCompare(a.start || "")).slice(0, 40);
+  const rqs = S.requests.filter(r => r.teacherId === x.id).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 30);
   const chg = S.courses.flatMap(k => { const hs = (k.tHist || []).slice().sort((a, b) => a.until.localeCompare(b.until)); return hs.map((h, i) => ({ k, from: h.until, a: h, b: hs[i + 1] || { teacherId: k.teacherId, teacher: k.teacher } })).filter(r => r.a.teacherId === x.id || r.b.teacherId === x.id); }).sort((p, q) => q.from.localeCompare(p.from));
   return `<div class="panel"><h3>${L("上课记录")}</h3>
     <div class="tablewrap"><table><thead><tr><th>${L("月份")}</th><th>${L("上了几节")}</th><th>${L("小时")}</th><th>${L("其中代课")}</th><th>${L("被别人代")}</th></tr></thead><tbody>
@@ -4207,11 +4211,12 @@ function tRecordHtml(x) {
       ${pastK.map(k => `<tr${gradeGroup(k.id + "_" + x.id) ? ` class="click" data-pgrade="${esc(k.id + "_" + x.id)}"` : ""}><td class="nm"><b>${esc(cname(k))}</b>${k.teacherId !== x.id ? ` <span class="pill st-试听">${esc(L("已换给 {0}", tdisp(tch(k.teacherId)) || k.teacher || L("未定老师")))}</span>` : ""}</td><td>${esc(span(k))}</td><td>${(k.studentIds || []).length}</td></tr>`).join("")}
       ${pastG.map(g => `<tr class="click" data-pgrade="${esc(g.id)}"><td class="nm"><b>${esc(g.label)}</b></td><td>${esc(`${g.first.date} – ${g.last.date}`)}</td><td>${g.sids.size}</td></tr>`).join("")}
     </tbody></table></div>` : `<span class="muted">${L("还没有结束的班")}</span>`}
-    <h3>${L("代课和换老师")}</h3>
+    <h3>${L("代课、换老师和停课")}</h3>
     ${subs.length || chg.length ? `<div class="clslist">
-      ${chg.map(r => `<div class="row" style="gap:8px"><span class="muted" style="width:6.5em;flex:none">${esc(r.from)}</span><span>${esc(L("“{0}”从这天起由 {1} 换成 {2}", cname(r.k), hName(r.a), hName(r.b)))}</span></div>`).join("")}
-      ${subs.map(c => { const by = c.teacherId === x.id; return `<div class="row" style="gap:8px"><span class="muted" style="width:6.5em;flex:none">${esc(c.date)} ${esc(c.start || "")}</span><span class="pill ${by ? "st-上课中" : "st-待排课"}">${L(by ? "代课" : "被代")}</span><span>${esc(by ? L("替 {0} 上“{1}”", tdisp(tch(subOf(c))) || "?", cname(c)) : L("“{0}”由 {1} 代上", cname(c), tdisp(tch(c.teacherId)) || "?"))}</span></div>`; }).join("")}
+      ${chg.map(r => `<div class="row" style="gap:8px"><span class="muted" style="width:6.5em;flex:none">${esc(r.from)}</span><span>${esc(L("“{0}”从这天起由 {1} 换成 {2}", cname(r.k), hName(r.a), hName(r.b)))}</span>${r.a.by ? `<span class="muted" style="font-size:12px">${esc(byWho(r.a.by, r.a.at))}</span>` : ""}</div>`).join("")}
+      ${subs.map(c => { const by = c.teacherId === x.id; return `<div class="row" style="gap:8px"><span class="muted" style="width:6.5em;flex:none">${esc(c.date)} ${esc(c.start || "")}</span><span class="pill ${by ? "st-上课中" : "st-待排课"}">${L(by ? "代课" : "被代")}</span><span>${esc(by ? L("替 {0} 上“{1}”", tdisp(tch(subOf(c))) || "?", cname(c)) : L("“{0}”由 {1} 代上", cname(c), tdisp(tch(c.teacherId)) || "?"))}</span>${c.subBy ? `<span class="muted" style="font-size:12px">${esc(byWho(c.subBy, c.subAt))}</span>` : ""}</div>`; }).join("")}
     </div>` : `<span class="muted">${L("没有代课或换老师的记录")}</span>`}
+    ${rqs.length ? `<h3>${L("老师的申请")}</h3><div class="tablewrap"><table><thead><tr><th>${L("课")}</th><th>${L("申请")}</th><th>${L("原因")}</th><th>${L("结果")}</th></tr></thead><tbody>${rqs.map(r => `<tr><td>${esc(r.date)} ${esc(r.start)} · ${esc(r.label)}</td><td>${L(RQ_KIND[r.kind] || r.kind)}</td><td>${esc(r.reason || "")}</td><td>${esc(rqResult(r))}${r.handledBy ? `<div class="muted" style="font-size:12px">${esc(byWho(r.handledBy, r.handledAt))}</div>` : ""}</td></tr>`).join("")}</tbody></table></div>` : ""}
   </div>`;
 }
 
@@ -4247,6 +4252,7 @@ async function setSessTeacher(c, nt) {
   if (c._base) { if (nt === orig) { delete d.teacherId; delete d.subFor; } else { d.teacherId = nt; d.subFor = orig; } }
   else if (raw) { d.teacherId = nt; if (nt === orig) delete d.subFor; else d.subFor = orig; }
   else return;
+  if (d.subFor) { d.subBy = S.acct.id; d.subAt = new Date().toISOString(); } else { delete d.subBy; delete d.subAt; }
   await save("classes", c.id, d);
 }
 
@@ -4286,6 +4292,84 @@ function myProfileForm() {
 }
 
 Object.assign(ES, {"{0} 个班在上": "{0} grupos activos", "{0}（原老师）": "{0} (profesor original)", "“{0}”从这天起由 {1} 换成 {2}": "«{0}»: desde este día pasa de {1} a {2}", "“{0}”由 {1} 代上": "«{0}» la dio {1} como reemplazo", "一节一节选": "Elegir clase por clase", "上个月": "Mes anterior", "上了几节": "Clases dadas", "上课统计": "Clases dadas por profesor", "下个月": "Mes siguiente", "从哪天起换老师": "Desde qué día cambia el profesor", "带班时间": "Periodo a su cargo", "代课和换老师": "Reemplazos y cambios de profesor", "休假": "De licencia", "你现在用的是初始密码。设好新密码以后，下次就用新密码登录，用户名还是 {0}。": "Estás usando la contraseña inicial. Después de crear una nueva, entra con ella; tu usuario sigue siendo {0}.", "例：中文、西语、英语": "Ej.: chino, español, inglés", "例：教龄、擅长教什么、学历": "Ej.: años de experiencia, especialidad, estudios", "保存后生效": "Se aplica al guardar", "保存新密码": "Guardar contraseña nueva", "修改我的资料": "Editar mis datos", "其中代课": "Reemplazos", "初始密码 {0}，还没改": "Contraseña inicial {0}, sin cambiar", "初始密码：{0}（第一次登录会让你改成自己的密码）": "Contraseña inicial: {0} (al entrar por primera vez te pedirá crear la tuya)", "发给老师": "Enviar a los profesores", "只算到今天、没取消的课。代课算在实际上课的老师名下。": "Cuenta solo clases hasta hoy y no canceladas. Los reemplazos cuentan para quien dio la clase.", "合计 {0} 节 · {1} 小时": "Total {0} clases · {1} horas", "名字、状态和上课安排由办公室管理，需要改请联系办公室。密码在右上角你的名字里改。": "El nombre, el estado y el horario los maneja la oficina; para cambiarlos, contáctala. La contraseña se cambia tocando tu nombre arriba a la derecha.", "安排代课": "Programar reemplazo", "安排代课：{0}": "Programar reemplazo: {0}", "小时": "Horas", "已安排 {0} 节代课": "{0} reemplazos programados", "已换给 {0}": "Ahora con {0}", "已改成自己的密码": "Ya cambió su contraseña", "已重置为 {0}，老师下次登录时要改密码": "Restablecida a {0}; al entrar deberá cambiarla", "带过的班": "Grupos anteriores", "开账号": "Crear cuenta", "开通中…": "Creando…", "开通了 {0} 个账号": "{0} cuentas creadas", "开通选中的账号": "Crear las cuentas marcadas", "思源系统老师账号": "Cuentas de profesor del sistema Siyuan", "我的资料": "Mis datos", "教师": "Profesores", "新密码不能和初始密码一样。": "La contraseña nueva no puede ser igual a la inicial.", "替 {0} 上“{1}”": "Reemplazó a {0} en «{1}»", "最近 30 天考勤完成 {0} / {1} 节": "Asistencia completa en {0} de {1} clases (últimos 30 días)", "本周 {0} 小时": "{0} h esta semana", "没有代课或换老师的记录": "Sin reemplazos ni cambios de profesor", "没有改动": "Sin cambios", "没有账号": "Sin cuenta", "现在没有在上的班": "No tiene grupos activos", "现在的课": "Clases actuales", "用初始密码 {0}": "Usar la contraseña inicial {0}", "重置为 {0}": "Restablecer a {0}", "用别人给的密码登录后，系统会要求改成自己的密码。": "Al entrar con una contraseña dada por otra persona, el sistema pedirá crear una propia.", "用户名用老师的西语名（可以改），初始密码都是 {0}。老师第一次登录时必须改成自己的密码。": "El usuario es el nombre en español del profesor (se puede cambiar) y la contraseña inicial es {0}. Al entrar por primera vez deberá crear la suya.", "登录账号": "Cuenta de acceso", "离职": "Ya no trabaja", "系统只读最近 200 天的课，{0} 之前的不全。": "El sistema carga los últimos 200 días; antes del {0} los datos están incompletos.", "给 {0} 位老师开账号": "Crear cuentas para {0} profesores", "给老师开账号": "Crear cuentas de profesores", "编辑资料": "Editar datos", "老师介绍": "Presentación", "老师照片": "Foto del profesor", "联系方式": "Contacto", "被别人代": "Reemplazado", "请填用户名": "Escribe el usuario", "请设置你自己的密码": "Crea tu propia contraseña", "请重新登录，再设置新密码。": "Vuelve a iniciar sesión y crea la contraseña nueva.", "谁来上": "Quién la da", "还没有写介绍": "Sin presentación", "还没有写介绍，点“编辑资料”可以加。": "Sin presentación; agrégala con «Editar datos».", "还没有填联系方式": "Sin datos de contacto", "还没有结束的班": "Aún no hay grupos terminados", "还没有账号": "Aún sin cuenta", "这个月还没有上过课": "Aún no hay clases este mes", "这天之前的课还算原来的老师，之后的课换给新老师。只是临时代几节课的话，请到老师主页点“安排代课”。": "Las clases antes de ese día siguen contando para el profesor anterior; desde ese día pasan al nuevo. Para reemplazar solo algunas clases, usa «Programar reemplazo» en la página del profesor.", "这段时间都由谁代": "Quién reemplaza en todo el periodo", "这里还没有老师": "Aún no hay profesores aquí", "选一段日期，给这位老师的每节课选代课老师。代课只改这几节，班级本身的老师不变；记录会算在实际上课的老师名下。要长期换老师，请到“编辑班级”里改老师。": "Elige un rango de fechas y un reemplazo para cada clase. Solo cambian esas clases, el grupo conserva su profesor, y el registro cuenta para quien dio la clase. Para un cambio permanente, cambia el profesor en «Editar grupo».", "重置密码为 {0}": "Restablecer contraseña a {0}", "代课": "Reemplazo", "被代": "Reemplazado", "老师忘了密码就点重置，老师下次登录时会再设一个新的。为了安全，系统不保存老师自己设的密码。": "Si el profesor olvida su contraseña, restablécela; al entrar creará una nueva. Por seguridad, el sistema no guarda las contraseñas que crean los profesores."});
+/* ---------- 停课 / 代课申请：老师在自己的课上申请，后台同意停课、安排代课或不同意 ---------- */
+const RQ_KIND = { cancel: "申请停课", sub: "找人代课" };
+const rqOf = id => S.requests.filter(r => r.sessionId === id).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0];
+const rqOpen = () => S.requests.filter(r => r.status === "open").sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.start || "").localeCompare(b.start || ""));
+const rqPill = r => !r ? "" : r.status === "open" ? `<span class="pill st-待排课">${esc(L("{0}，等待处理", L(RQ_KIND[r.kind] || r.kind)))}</span>`
+  : r.status === "rejected" ? `<span class="pill attmiss">${esc(L("申请没有通过"))}</span>` : "";
+const byWho = (u, at) => u ? L("{0} 操作", u) + (at ? " · " + fmtTime(at) : "") : "";
+
+// the teacher's box inside a session: ask to cancel it or to get a substitute
+function rqBoxHtml(c) {
+  const r = rqOf(c.id);
+  if (r && r.status === "open") return `<div class="panel" id="rqbox"><div class="row"><h3>${L("停课 / 代课")}</h3>${rqPill(r)}<span class="spacer"></span><button type="button" class="btn small" data-rqwd="${esc(r.id)}">${L("撤回申请")}</button></div>
+    <p class="muted" style="margin:0;font-size:13px">${esc(L("原因：{0}", r.reason || "—"))}</p></div>`;
+  return `<details class="panel" id="rqbox"><summary><b>${L("这节课上不了？申请停课或找人代课")}</b>${r && r.status === "rejected" ? ` ${rqPill(r)}${r.reply ? ` <span class="muted">${esc(r.reply)}</span>` : ""}` : ""}</summary>
+    <div style="display:grid;gap:10px;margin-top:10px">
+      <div class="payseg" role="group">${Object.entries(RQ_KIND).map(([k, l], i) => `<button type="button" data-rqk="${k}" aria-pressed="${i === 0}">${L(l)}</button>`).join("")}</div>
+      <label class="f">${L("原因")}<textarea data-rqr rows="2" placeholder="${L("例：生病、家里有事、学校有活动")}"></textarea></label>
+      <div class="row"><span class="muted" style="font-size:12.5px">${L("办公室同意以后这节课才会停或换人，结果会显示在“我的课表”最上面。")}</span><span class="spacer"></span><button type="button" class="btn small primary" data-rqsend>${L("提交申请")}</button></div>
+    </div></details>`;
+}
+function wireRq(el, c) {
+  el.addEventListener("click", async e => {
+    const k = e.target.closest("[data-rqk]"); if (k) { k.parentElement.querySelectorAll("[data-rqk]").forEach(x => x.setAttribute("aria-pressed", String(x === k))); return; }
+    const wd0 = e.target.closest("[data-rqwd]"); if (wd0) { wd0.disabled = true; try { await S.db.collection("requests").doc(wd0.dataset.rqwd).update({ status: "withdrawn", updatedAt: new Date().toISOString() }); toast(L("已撤回")); $("#rqbox", el).outerHTML = rqBoxHtml(c); } catch (err) { wd0.disabled = false; toast(L("保存失败：{0}", err?.message || err?.code || err)); } return; }
+    const go = e.target.closest("[data-rqsend]"); if (!go) return;
+    const kind = el.querySelector("[data-rqk][aria-pressed=true]")?.dataset.rqk || "cancel", reason = el.querySelector("[data-rqr]").value.trim();
+    if (!reason) return toast(L("请写一下原因"));
+    go.disabled = true;
+    const d = { kind, reason, status: "open", sessionId: c.id, courseId: c.courseId || "", date: c.date, start: c.start || "", end: c.end || "", label: cname(c) || "", teacherId: myTid(), createdAt: new Date().toISOString(), createdBy: S.acct.id };
+    try { const ref = S.db.collection("requests").doc(); await ref.set(d); S.requests = [...S.requests.filter(x => x.id !== ref.id), { id: ref.id, ...d }]; toast(L("已提交，等办公室处理")); $("#rqbox", el).outerHTML = rqBoxHtml(c); }
+    catch (err) { go.disabled = false; toast(L("保存失败：{0}", err?.message || err?.code || err)); }
+  });
+}
+
+// the office's list of open requests (首页提醒 and 教师)
+function rqPanel() {
+  const list = rqOpen(); if (!list.length) return "";
+  return `<section class="panel" id="rqpanel"><div class="row"><h2>${L("老师的申请")}</h2><span class="pill st-待排课">${esc(L("{0} 条等待处理", list.length))}</span></div>
+    <div class="tablewrap"><table><thead><tr><th>${L("课")}</th><th>${L("老师")}</th><th>${L("申请")}</th><th>${L("处理")}</th></tr></thead><tbody>
+    ${list.map(r => { const c = CL().find(x => x.id === r.sessionId), x = tch(r.teacherId); return `<tr data-rqrow="${esc(r.id)}">
+      <td class="nm"><b>${esc(r.date)} ${esc(wd(r.date))} ${esc(r.start)}${r.end ? "–" + esc(r.end) : ""}</b><div class="muted" style="font-size:12.5px">${esc(r.label || L("课程"))}${c ? "" : " · " + esc(L("这节课已经不在课表里"))}</div></td>
+      <td>${esc(tdisp(x) || r.createdBy)}</td>
+      <td><span class="pill ${r.kind === "cancel" ? "attmiss" : "st-试听"}">${L(RQ_KIND[r.kind] || r.kind)}</span><div style="font-size:13px;margin-top:4px">${esc(r.reason || "")}</div><div class="muted" style="font-size:12px">${esc(fmtTime(r.createdAt))}</div></td>
+      <td><div style="display:grid;gap:6px;min-width:13em">
+        ${c ? `<button type="button" class="btn small ${r.kind === "cancel" ? "primary" : ""}" data-rqcancel="${esc(r.id)}">${L("同意停课")}</button>
+        <div class="row" style="gap:4px;flex-wrap:nowrap"><select data-rqsubt style="min-width:0"><option value="">${L("选代课老师")}</option>${S.teachers.filter(t => t.id !== r.teacherId && tStatus(t) === "在职").sort(byName).map(t => `<option value="${t.id}">${esc(tboth(t))}</option>`).join("")}</select><button type="button" class="btn small ${r.kind === "sub" ? "primary" : ""}" data-rqsub="${esc(r.id)}">${L("安排")}</button></div>` : ""}
+        <div class="row" style="gap:4px;flex-wrap:nowrap"><input data-rqreply placeholder="${L("回复老师（可不填）")}" style="min-width:0"><button type="button" class="btn small" data-rqno="${esc(r.id)}">${L(c ? "不同意" : "关闭")}</button></div>
+      </div></td></tr>`; }).join("")}
+    </tbody></table></div></section>`;
+}
+async function cancelSess(c, why) {
+  const by = { cancelledBy: S.acct.id, cancelledAt: new Date().toISOString(), ...(why ? { cancelReason: why } : {}) };
+  if (c._base) await save("classes", c.id, { courseId: c.courseId, date: c.date, start: c.start || "", cancelled: true, ...by });
+  else await S.db.collection("classes").doc(c.id).update({ cancelled: true, ...by });
+}
+async function rqClick(t) {
+  const bt = t.closest("[data-rqcancel],[data-rqsub],[data-rqno]"); if (!bt) return false;
+  const row = bt.closest("[data-rqrow]"), r = S.requests.find(x => x.id === row.dataset.rqrow); if (!r) return true;
+  const c = CL().find(x => x.id === r.sessionId), now = new Date().toISOString(), done = { handledBy: S.acct.id, handledAt: now, updatedAt: now };
+  const reply = row.querySelector("[data-rqreply]")?.value.trim() || "";
+  bt.disabled = true;
+  try {
+    if (bt.dataset.rqcancel && c) { await cancelSess(c, r.reason); await S.db.collection("requests").doc(r.id).update({ status: "done", result: "cancel", ...(reply ? { reply } : {}), ...done }); toast(L("已停课：{0}", `${r.date} ${r.label}`)); }
+    else if (bt.dataset.rqsub && c) { const nt = row.querySelector("[data-rqsubt]").value; if (!nt) { bt.disabled = false; toast(L("请先选代课老师")); return true; } await setSessTeacher(c, nt); await S.db.collection("requests").doc(r.id).update({ status: "done", result: "sub", subTeacherId: nt, ...(reply ? { reply } : {}), ...done }); toast(L("已安排 {0} 代课", tdisp(tch(nt)))); }
+    else if (bt.dataset.rqno) { await S.db.collection("requests").doc(r.id).update({ status: c ? "rejected" : "done", result: c ? "rejected" : "gone", ...(reply ? { reply } : {}), ...done }); toast(L("已处理")); }
+  } catch (err) { bt.disabled = false; toast(L("保存失败：{0}", err?.message || err?.code || err)); }
+  return true;
+}
+// the teacher's own requests from the last two weeks, with what the office decided
+function myRqPanel() {
+  const since = new Date(Date.now() - 14 * 864e5).toISOString(), list = S.requests.filter(r => r.status !== "withdrawn" && (r.status === "open" || (r.handledAt || "") >= since)).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  if (!list.length) return "";
+  return `<section class="panel"><h2>${L("我的申请")}</h2><div class="clslist">${list.map(r => `<div class="row" style="gap:8px"><b>${esc(r.date)} ${esc(r.start)}</b><span>${esc(r.label || "")}</span><span class="pill ${r.kind === "cancel" ? "attmiss" : "st-试听"}">${L(RQ_KIND[r.kind] || r.kind)}</span><span class="pill ${r.status === "open" ? "st-待排课" : r.status === "rejected" ? "attmiss" : "st-上课中"}">${esc(rqResult(r))}</span>${r.reply ? `<span class="muted">${esc(L("办公室回复：{0}", r.reply))}</span>` : ""}</div>`).join("")}</div></section>`;
+}
+const rqResult = r => r.status === "open" ? L("等待处理") : r.status === "withdrawn" ? L("老师撤回了") : r.status === "rejected" ? L("没有同意") : r.result === "cancel" ? L("已停课") : r.result === "sub" ? L("由 {0} 代课", tdisp(tch(r.subTeacherId)) || "?") : L("已处理");
+
+Object.assign(ES, {"申请停课": "Pedir cancelar la clase", "找人代课": "Pedir reemplazo", "{0}，等待处理": "{0}, pendiente", "申请没有通过": "Solicitud no aprobada", "{0} 操作": "Hecho por {0}", "停课 / 代课": "Cancelación / reemplazo", "撤回申请": "Retirar solicitud", "原因：{0}": "Motivo: {0}", "这节课上不了？申请停课或找人代课": "¿No puedes dar esta clase? Pide cancelarla o un reemplazo", "原因": "Motivo", "例：生病、家里有事、学校有活动": "Ej.: enfermedad, asunto familiar, actividad escolar", "办公室同意以后这节课才会停或换人，结果会显示在“我的课表”最上面。": "La clase solo se cancela o cambia cuando la oficina lo aprueba; el resultado aparecerá aquí.", "提交申请": "Enviar solicitud", "已撤回": "Retirada", "请写一下原因": "Escribe el motivo", "已提交，等办公室处理": "Enviada; la oficina la revisará", "老师的申请": "Solicitudes de profesores", "{0} 条等待处理": "{0} pendientes", "课": "Clase", "申请": "Solicitud", "处理": "Acción", "这节课已经不在课表里": "Esta clase ya no está en el horario", "同意停课": "Aprobar cancelación", "选代课老师": "Elegir reemplazo", "安排": "Asignar", "回复老师（可不填）": "Respuesta al profesor (opcional)", "不同意": "Rechazar", "已停课：{0}": "Clase cancelada: {0}", "请先选代课老师": "Primero elige el reemplazo", "已安排 {0} 代课": "{0} dará la clase como reemplazo", "已处理": "Hecho", "等待处理": "Pendiente", "老师撤回了": "Retirada por el profesor", "没有同意": "Rechazada", "已停课": "Cancelada", "由 {0} 代课": "Reemplazo: {0}", "代课、换老师和停课": "Reemplazos, cambios de profesor y cancelaciones"});
+Object.assign(ES, {"我的申请": "Mis solicitudes", "办公室回复：{0}": "Respuesta de la oficina: {0}", "办公室同意以后这节课才会停或换人，结果会显示在“我的课表”最上面。": "La clase solo se cancela o cambia cuando la oficina lo aprueba; el resultado aparecerá arriba en «Mi horario»."});
 /* ---------- CSV ---------- */
 async function exportCsv() {
   const head = ["中文名", "西语名 / Nombre", "学号", "C.I. / 护照号", "所属教学点", "状态", "级别", "性别", "出生日期", "登记日期", "电话", "邮箱", "地址", "家长1", "家长1电话", "家长1地址", "家长2", "家长2电话", "最近上课", "下次上课", "欠费", "HSK"].map(k => L(k));
@@ -4426,11 +4510,13 @@ render();
     const tid = FB.claims.tid || "-";
     sub(db.collection("attendance").where("teacherId", "==", tid).limit(3000), "at", "attendance");
     sub(db.collection("grades").where("teacherId", "==", tid).limit(500), "gr", "grades");
+    sub(db.collection("requests").where("teacherId", "==", tid).limit(500), "rq", "requests");
     Object.assign(S.ready, { p: true, x: true, g: true, i: true, o: true, e: true, m: true, f: true });
     return;
   }
   sub(db.collection("attendance").where("date", ">=", addDays(today(), -400)).limit(5000), "at", "attendance");
   sub(db.collection("grades").limit(1000), "gr", "grades");
+  sub(db.collection("requests").where("date", ">=", addDays(today(), -200)).limit(1000), "rq", "requests");
   // payments outgrow one 1000-doc query, so read them in half-year windows and merge
   const cuts = []; for (let y = 2025; y <= new Date().getFullYear() + 1; y++) cuts.push(`${y}-01-01`, `${y}-07-01`);
   const pq = db.collection("payments");
