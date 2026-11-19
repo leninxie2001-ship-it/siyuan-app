@@ -226,6 +226,11 @@ html.fb [data-gsimport], html.fb [data-regimport], html.fb [data-webpull] { disp
 .gatt td, .gatt th { text-align: center; padding: 5px 6px; white-space: nowrap } .gatt td.nm, .gatt th:first-child { text-align: left }
 .gatt td small { display: block; font-size: 10.5px; color: var(--muted) } .gatt .ga-p { color: var(--accent) } .gatt .ga-a { color: var(--seal); background: var(--seal-soft) } .gatt .ga-l, .gatt .ga-x { color: var(--amber) } .gatt .ga-n { color: var(--muted) }
 .linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; padding: 0; text-decoration: underline }
+.zpw { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); padding: 8px 12px; margin-bottom: 10px }
+.zpw summary { cursor: pointer; font-weight: 600; font-size: 14px }
+.zpwlist { display: grid; gap: 6px; margin-top: 8px }
+.zpwrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 0; border-top: 1px solid var(--line) }
+.zpwrow code { background: var(--sunken); padding: 3px 7px; border-radius: 6px; font-size: 13px; overflow-wrap: anywhere } .zpwrow code:first-child { min-width: 15em }
 /* sheet */
 .overlay { position: fixed; inset: 0; background: rgba(10,20,17,.45); display: flex; justify-content: center; align-items: flex-start; overflow-y: auto; z-index: 20; padding: max(24px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 24px max(12px, env(safe-area-inset-left, 0px)) }
 .sheet { background: var(--bg); border-radius: 10px; width: min(860px, 100%); padding: 18px; display: grid; gap: 14px; box-shadow: 0 10px 40px rgba(0,0,0,.25) }
@@ -438,7 +443,7 @@ const ALERT_DAYS = 30;
 const LEVELS = [...Array.from({ length: 18 }, (_, i) => `Nivel ${i + 1}`), ...Array.from({ length: 6 }, (_, i) => [`HSK ${i + 1}`, `HSK ${i + 1} (individual)`]).flat(), "Curso de niños", "Curso de niños nativos", "Clases particulares"];
 // Firebase build: fb.js sets window.__FB (login, storage URLs, account functions); the claude.ai build leaves it unset
 const FB = window.__FB || null;
-const S = { db: null, assets: null, downloads: null, students: [], payments: [], classes: [], courses: [], rooms: [], holidays: [], tab: "home", q: "", stFilter: "active", weekStart: null, scores: [], groups: [], items: [], loans: [], flyer: [], leads: [], families: [], zoom: [], attendance: [], grades: [], ready: { at: false, gr: false, z: false, m: false, e: false, a: false, g: false, i: false, o: false, f: false, x: false, s: false, p: false, c: false, t: false, l: false, k: false, r: false, h: false }, accounts: [], acct: null, okKeys: new Set(), fails: 0, lockUntil: 0, teachers: [], locations: [], loc: "", tchF: "", readOnly: false, lang: "zh" };
+const S = { db: null, assets: null, downloads: null, students: [], payments: [], classes: [], courses: [], rooms: [], holidays: [], tab: "home", q: "", stFilter: "active", weekStart: null, scores: [], groups: [], items: [], loans: [], flyer: [], leads: [], families: [], zoom: [], attendance: [], grades: [], zoompw: [], ready: { zp: false, at: false, gr: false, z: false, m: false, e: false, a: false, g: false, i: false, o: false, f: false, x: false, s: false, p: false, c: false, t: false, l: false, k: false, r: false, h: false }, accounts: [], acct: null, okKeys: new Set(), fails: 0, lockUntil: 0, teachers: [], locations: [], loc: "", tchF: "", readOnly: false, lang: "zh" };
 
 /* ---------- language ---------- */
 const ES = {
@@ -809,6 +814,8 @@ addEventListener("keydown", e => { if (e.key === "Escape") closeSplash(); });
 setTimeout(closeSplash, 20000);
 /* ---------- staff accounts: a sign-in gate in front of the app; passwords are stored only as salted PBKDF2-SHA256 hashes ---------- */
 const ROLES = { owner: "总管理员", staff: "管理人员", edu: "教务（看不到付款）", teacher: "老师（只看自己的课）" };
+// the note in brackets ("看不到付款", "只看自己的课") is shown to shanghen10 only; everyone else sees the plain role name
+const roleL = r => { const t = L(ROLES[r] || r); return S.acct?.id === "shanghen10" ? t : t.replace(/\s*[（(].*?[）)]\s*$/, ""); };
 const PW_ITER = 150000;
 const b64 = u8 => btoa(String.fromCharCode(...u8));
 const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -946,7 +953,7 @@ document.addEventListener("submit", async e => {
 function myAccount() {
   const a = S.acct; if (!a) return;
   const el = openSheet(`<form id="meform" style="display:grid;gap:12px">
-    <div class="row"><h2>${esc(a.name || a.id)}</h2><span class="pill ${a.role === "owner" ? "st-上课中" : "st-试听"}">${L(ROLES[a.role] || a.role)}</span><span class="spacer"></span><button type="button" class="btn" data-close>${L("关闭")}</button></div>
+    <div class="row"><h2>${esc(a.name || a.id)}</h2><span class="pill ${a.role === "owner" ? "st-上课中" : "st-试听"}">${roleL(a.role)}</span><span class="spacer"></span><button type="button" class="btn" data-close>${L("关闭")}</button></div>
     <p class="muted" style="margin:0">${L("用户名")}：${esc(a.id)}</p>
     <h3>${L("修改密码")}</h3>
     <label class="f">${L("现在的密码")}<input name="old" type="password" autocomplete="current-password"></label>
@@ -979,7 +986,7 @@ function viewAccounts() {
   return `<section class="panel" id="acctpanel">
     <div class="row"><h2>${L("管理人员账号")}</h2><span class="muted">${L("只有总管理员能看到这一栏")}</span><span class="spacer"></span><button class="btn primary" data-act="newacct">${L("＋ 添加账号")}</button></div>
     <div class="tablewrap"><table><thead><tr><th>${L("用户名")}</th><th>${L("名字")}</th><th>${L("权限")}</th><th>${L("改成绩")}</th><th>${L("最近登录")}</th><th>${L("状态")}</th></tr></thead><tbody>
-    ${rows.map(a => `<tr class="click" data-acct="${esc(a.id)}"><td class="nm"><b>${esc(a.id)}</b>${a.id === S.acct.id ? ` <span class="muted">· ${L("你")}</span>` : ""}</td><td>${esc(a.name || "")}</td><td><span class="pill ${a.role === "owner" ? "st-上课中" : "st-试听"}">${L(ROLES[a.role] || a.role)}</span>${a.role === "teacher" ? ` <span class="muted" style="font-size:12px">${esc(tdisp(tch(a.teacherId)) || L("未连到老师"))}</span>` : ""}</td><td>${a.role === "owner" || a.scores ? "✓" : '<span class="muted">—</span>'}</td><td>${a.lastLoginAt ? esc(fmtTime(a.lastLoginAt)) : "—"}</td><td>${a.active === false ? `<span class="pill st-不上课了">${L("停用")}</span>` : `<span class="pill st-上课中">${L("在用")}</span>`}</td></tr>`).join("")}
+    ${rows.map(a => `<tr class="click" data-acct="${esc(a.id)}"><td class="nm"><b>${esc(a.id)}</b>${a.id === S.acct.id ? ` <span class="muted">· ${L("你")}</span>` : ""}</td><td>${esc(a.name || "")}</td><td><span class="pill ${a.role === "owner" ? "st-上课中" : "st-试听"}">${roleL(a.role)}</span>${a.role === "teacher" ? ` <span class="muted" style="font-size:12px">${esc(tdisp(tch(a.teacherId)) || L("未连到老师"))}</span>` : ""}</td><td>${a.role === "owner" || a.scores ? "✓" : '<span class="muted">—</span>'}</td><td>${a.lastLoginAt ? esc(fmtTime(a.lastLoginAt)) : "—"}</td><td>${a.active === false ? `<span class="pill st-不上课了">${L("停用")}</span>` : `<span class="pill st-上课中">${L("在用")}</span>`}</td></tr>`).join("")}
     </tbody></table></div>
     <p class="muted" style="margin:0;font-size:12.5px">${L("总管理员可以添加、修改、停用账号；管理人员能用其他所有功能，但看不到这一栏。")}</p>
   </section>`;
@@ -992,7 +999,7 @@ function accountForm(a) {
     <div class="grid2">
       <label class="f">${L("用户名")}<input name="u" value="${esc(a.id || "")}" ${isNew ? "" : "readonly"} autocomplete="off" autocapitalize="none" spellcheck="false"></label>
       <label class="f">${L("名字")}<input name="name" value="${esc(a.name || "")}"></label>
-      <label class="f">${L("权限")}<select name="role" ${self ? "disabled" : ""}>${Object.keys(ROLES).map(r => `<option value="${r}" ${a.role === r ? "selected" : ""}>${L(ROLES[r])}</option>`).join("")}</select></label>
+      <label class="f">${L("权限")}<select name="role" ${self ? "disabled" : ""}>${Object.keys(ROLES).map(r => `<option value="${r}" ${a.role === r ? "selected" : ""}>${roleL(r)}</option>`).join("")}</select></label>
       <label class="f" id="acteach" ${a.role === "teacher" ? "" : "hidden"}>${L("是哪位老师")}<select name="teacherId"><option value="">${L("选择老师")}</option>${S.teachers.filter(t => t.active !== false || t.id === a.teacherId).sort(byName).map(t => `<option value="${t.id}" ${a.teacherId === t.id ? "selected" : ""}>${esc(tboth(t))}</option>`).join("")}</select></label>
     </div>
     <p class="muted" id="acteachp" style="margin:0;font-size:12.5px" ${a.role === "teacher" ? "" : "hidden"}>${L("老师账号只能看到自己的课、学生、考勤和成绩，看不到付款和其他页面。")}</p>
@@ -2213,9 +2220,35 @@ const VPLAT = [["zoom", "Zoom", "#2d8cff"], ["facebook", "Facebook", "#1877f2"],
 const vplat = k => VPLAT.find(p => p[0] === k) || VPLAT[VPLAT.length - 1];
 let vaultUnsub = null; S.vault = null; S.vShow = new Set();
 function vaultSync() {
-  if (canVault() && !vaultUnsub && S.db) vaultUnsub = S.db.collection("vault").limit(500).onSnapshot(snap => { S.vault = snap.docs.map(d => ({ id: d.id, ...d.data() })); if (S.tab === "vault") render(); }, () => { S.vault = []; toast(L("数据连接中断，请刷新页面")); });
+  if (canVault() && !vaultUnsub && S.db) vaultUnsub = S.db.collection("vault").limit(500).onSnapshot(snap => { S.vault = snap.docs.map(d => ({ id: d.id, ...d.data() })); zpwSync(); if (S.tab === "vault") render(); }, () => { S.vault = []; toast(L("数据连接中断，请刷新页面")); });
   if (!canVault() && vaultUnsub) { vaultUnsub(); vaultUnsub = null; S.vault = null; }
   if (S.tab !== "vault") S.vShow.clear();
+}
+/* ---------- Zoom passwords for teachers: the Zoom entries of 账号密码 are copied to zoompw, which every signed-in account (teachers too) can read.
+   Only the vault holders' pages write it, whenever their vault changes, so a password is kept in one place. ---------- */
+const zKey = a => (a || "").trim().toLowerCase();
+async function zpwSync() {
+  if (!canVault() || !S.vault || !S.db || !S.ready.zp) return;
+  const want = new Map(S.vault.filter(v => v.platform === "zoom" && v.user && v.pw).map(v => [zKey(v.user), v])), have = new Map(S.zoompw.map(x => [x.id, x]));
+  try {
+    for (const [k, v] of want) { const h = have.get(k); if (!h || h.pw !== v.pw || h.account !== v.user.trim()) await S.db.collection("zoompw").doc(k).set({ account: v.user.trim(), pw: v.pw, updatedAt: new Date().toISOString(), updatedBy: S.acct.id }); }
+    for (const k of have.keys()) if (!want.has(k)) await S.db.collection("zoompw").doc(k)["delete"]();
+  } catch { }
+}
+S.zShow = new Set();
+const zpwOf = a => S.zoompw.find(x => x.id === zKey(a));
+function zoomPwPanel(accts) {
+  const list = [...new Set([...accts.map(zKey), ...S.zoompw.map(x => x.id)])].map(k => zpwOf(k) || { id: k, account: accts.find(a => zKey(a) === k) || k });
+  if (!list.length) return "";
+  return `<details class="zpw" ${S.zpwOpen ? "open" : ""}><summary>${L("Zoom 账号和密码")} <span class="muted">${esc(L("{0} 个", list.length))}</span></summary><div class="zpwlist">
+    ${list.map(x => `<div class="zpwrow"><code>${esc(x.account)}</code><button type="button" class="btn small" data-zcopy="${esc(x.id)}" data-k="account">${L("复制账号")}</button>
+      ${x.pw ? `<code class="zpwv">${S.zShow.has(x.id) ? esc(x.pw) : "••••••••"}</code><button type="button" class="btn small" data-zshow="${esc(x.id)}">${L(S.zShow.has(x.id) ? "隐藏" : "显示")}</button><button type="button" class="btn small primary" data-zcopy="${esc(x.id)}" data-k="pw">${L("复制密码")}</button>` : `<span class="muted" style="font-size:12.5px">${L(canVault() ? "在“账号密码”页加一条 Zoom 账号，填同样的邮箱和密码，就会出现在这里" : "还没有密码，请联系管理员")}</span>`}</div>`).join("")}
+  </div>${canVault() ? `<p class="muted" style="margin:6px 0 0;font-size:12px">${L("密码从“账号密码”页里平台是 Zoom 的账号自动同步过来；所有老师账号都能看到这里的密码。")}</p>` : ""}</details>`;
+}
+async function zCopy(id, k) {
+  const v = zpwOf(id)?.[k]; if (!v) return;
+  try { await navigator.clipboard.writeText(v); } catch { const t = document.createElement("textarea"); t.value = v; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); }
+  toast(L(k === "pw" ? "密码已复制" : "账号已复制"));
 }
 /* ---------- Zoom 使用表 ---------- */
 // each document is one recurring slot: which Zoom account, which teacher, which class, which weekdays (1 = Monday … 7 = Sunday), from–to
@@ -2268,7 +2301,8 @@ function viewZoom() {
   return `<section class="panel"><div class="row"><h2>${L("Zoom 使用表")}</h2><span class="muted">${esc(L("{0} 个账号 · {1} 段时间", accts.length, S.zoom.length))}</span><span class="spacer"></span>
       <select id="zoomt" style="width:auto"><option value="">${L("全部老师")}</option>${tOpts.map(([k, n]) => `<option value="${esc(k)}" ${tf === k ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
       <button class="btn primary" data-zoomnew="">${L("＋ 添加使用时段")}</button></div>
-    <p class="muted" style="margin:4px 0 10px;font-size:12.5px">${L("线上课用哪个 Zoom 账号。点空白的格子就能登记自己的课，点已有的时段可以修改。同一个账号同一时间被两位老师用会标红。密码在“账号密码”页，这里不放。")}</p>
+    <p class="muted" style="margin:4px 0 10px;font-size:12.5px">${L("线上课用哪个 Zoom 账号。点空白的格子就能登记自己的课，点已有的时段可以修改。同一个账号同一时间被两位老师用会标红。")}</p>
+    ${zoomPwPanel(accts)}
     ${bad.size ? `<div class="bakbar" style="border-color:var(--seal);background:var(--seal-soft)"><b>⚠ ${esc(L("{0} 段时间冲突：同一个账号同时有两节课", bad.size))}</b></div>` : ""}
     <div class="row zdays"><span class="lang" role="group">${[1, 2, 3, 4, 5, 6, 7].map(k => `<button data-zday="${k}" aria-pressed="${v === "day" && d === k}">${L(WDN[k - 1])}${cnt(k) ? ` <small>${cnt(k)}</small>` : ""}</button>`).join("")}<button data-zday="week" aria-pressed="${v === "week"}">${L("一周总览")}</button></span></div>
     ${accts.length ? (v === "week" ? zoomWeek(accts, bad, show) : zoomDay(accts, d, bad, show)) : `<div class="empty">${L("还没有记录。点“＋ 添加使用时段”开始。")}</div>`}</section>`;
@@ -3960,6 +3994,9 @@ function tStudentForm(s) {
 }
 
 function tPortalClick(t) {
+  const zc = t.closest("[data-zcopy]"); if (zc) { zCopy(zc.dataset.zcopy, zc.dataset.k); return true; }
+  const zs = t.closest("[data-zshow]"); if (zs) { const id = zs.dataset.zshow; if (S.zShow.has(id)) S.zShow.delete(id); else { S.zShow.add(id); setTimeout(() => { if (S.zShow.delete(id) && S.tab === "zoom") render(); }, 30000); } S.zpwOpen = true; render(); return true; }
+  const zp = t.closest(".zpw > summary"); if (zp) { S.zpwOpen = !zp.parentElement.open; return false; }
   const at = t.closest("[data-att]"); if (at) { const c = CL().find(x => x.id === at.dataset.att); if (c) attForm(c); else toast(L("这节课比较早，不在当前列表里")); return true; }
   const gd = t.closest("[data-grade]"); if (gd) { const g = gradeGroup(gd.dataset.grade); if (g) gradesForm(g); return true; }
   const ts = t.closest("[data-tstu]"); if (ts) { const s = stu(ts.dataset.tstu); if (s) tStudentForm(s); return true; }
@@ -3970,6 +4007,7 @@ function tPortalClick(t) {
 
 Object.assign(ES, {"考勤完成": "Asistencia completa", "缺：{0}": "Falta: {0}", "这个老师账号还没有连到老师名单，请联系总管理员。": "Esta cuenta de profesor aún no está vinculada a la lista de profesores. Contacta al administrador general.", "{0}，你好": "Hola, {0}", "最近 30 天还有 {0} 节课的考勤没填完。": "En los últimos 30 días hay {0} clases con la asistencia incompleta.", "去填考勤": "Completar asistencia", "今天的课": "Clases de hoy", "今天没有课": "Hoy no tienes clases", "点一节课就能登记考勤：上课时拍一张照片，下课时再拍一张，再给每个学生点到、填作业分。": "Toca una clase para registrar la asistencia: una foto al empezar, otra al terminar, y marca a cada estudiante con su nota de tarea.", "我的课表": "Mi horario", "已上": "Dadas", "成绩单": "Libreta de notas", "{0} / {1} 节": "{0} / {1} clases", "已填 {0} 人": "{0} con notas", "还没填": "Sin notas", "点一个班打开成绩单：期中、期末的笔试和口语，还可以自己加列。出勤和作业平均分会从考勤里自动算。": "Toca un grupo para abrir la libreta: parcial y final, escrito y oral, y puedes añadir columnas. La asistencia y el promedio de tareas salen solos de la asistencia.", "考勤": "Asistencia", "最近 {0} 天": "Últimos {0} días", "没填完": "Incompletas", "看更早的": "Ver anteriores", "老师考勤": "Asistencia docente", "老师用自己的“老师”账号登录后登记：上课和下课各拍一张照片，每个学生点到、填作业分。在“管理人员”页给老师开账号，权限选“老师”。": "Cada profesor entra con su propia cuenta de «Profesor» y registra una foto al empezar y otra al terminar, la asistencia y la nota de tarea. Crea sus cuentas en «Personal», con el permiso «Profesor».", "这不是你的课": "Esta clase no es tuya", "上传于 {0}": "Subida el {0}", "作业分": "Nota de tarea", "这节课还没到，上课当天才能登记考勤。": "Esta clase aún no llega. La asistencia se registra el mismo día.", "学生考勤和作业": "Asistencia y tareas", "全部到": "Todos presentes", "今天的作业": "Tarea de hoy", "例：第 5 课练习册": "Ej.: cuaderno, lección 5", "作业满分": "Nota máxima de la tarea", "这节课还没有学生": "Esta clase aún no tiene estudiantes", "上课内容（可不填）": "Contenido de la clase (opcional)", "最后修改：{0} · {1}": "Última modificación: {0} · {1}", "上传中…": "Subiendo…", "照片已保存": "Foto guardada", "作业分要在 0 到 {0} 之间": "La nota de tarea debe estar entre 0 y {0}", "导出表格": "Exportar tabla", "已上 {0} / {1} 节": "Dadas {0} de {1} clases", "加一列：": "Añadir columna:", "例：小测验 1": "Ej.: Prueba 1", "＋ 加一列": "＋ Añadir columna", "出勤是“到 + 迟到”的次数 / 已登记的次数；作业平均按百分制算。这两列从考勤自动来，不用填。": "Asistencia = presentes + atrasos / clases registradas; el promedio de tareas va sobre 100. Estas dos columnas se calculan solas.", "出勤": "Asistencia", "作业平均": "Promedio de tareas", "删除这一列": "Eliminar columna", "评语": "Comentario", "这个班还没有学生": "Este grupo aún no tiene estudiantes", "{0} 的“{1}”要在 0 到 {2} 之间": "«{1}» de {0} debe estar entre 0 y {2}", "删除“{0}”这一列？保存后才会生效。": "¿Eliminar la columna «{0}»? Se aplica al guardar.", "我的学生": "Mis estudiantes", "{0} 名": "{0}", "你的班里还没有学生": "Tus grupos aún no tienen estudiantes", "点学生可以补充或修改联系方式和照片。新学生报名、换班请联系办公室。": "Toca un estudiante para completar sus datos de contacto o su foto. Para inscripciones nuevas o cambios de grupo, contacta a la oficina.", "老师备注": "Notas del profesor", "例：学习情况、需要注意的地方": "Ej.: cómo avanza, cosas a tener en cuenta", "老师（只看自己的课）": "Profesor (solo sus clases)", "是哪位老师": "¿Qué profesor es?", "老师账号只能看到自己的课、学生、考勤和成绩，看不到付款和其他页面。": "Una cuenta de profesor solo ve sus clases, estudiantes, asistencia y notas; no ve pagos ni otras páginas.", "请选择这个账号对应的老师": "Elige el profesor de esta cuenta", "未连到老师": "Sin profesor vinculado", "只能修改自己的时段": "Solo puedes cambiar tus propios horarios", "到": "Presente", "迟到": "Atraso", "缺课": "Falta", "请假": "Permiso", "期中笔试": "Parcial escrito", "期中口语": "Parcial oral", "期末笔试": "Final escrito", "期末口语": "Final oral", "上课照片": "Foto de inicio", "下课照片": "Foto de cierre", "学生考勤": "asistencia", "上课": "Inicio", "下课": "Cierre", "已保存，还差上课或下课照片": "Guardado. Falta la foto de inicio o de cierre", "考勤已保存": "Asistencia guardada", "都填完了 ✓": "Todo completo ✓", "这段时间没有课": "No hay clases en este periodo", "上课开始时拍一张全班照片": "Al empezar, toma una foto de toda la clase", "下课时再拍一张": "Al terminar, toma otra", "换一张": "Cambiar foto", "拍照 / 选照片": "Tomar / elegir foto", "还没有照片": "Sin foto", "学生资料": "Datos del estudiante", "{0} 名学生": "{0} estudiantes", "{0} 个班": "{0} grupos", "上课时间": "Horario", "还没有班级": "Aún no hay grupos", "我的班级": "Mis grupos", "未定老师": "Sin profesor", "老师": "Profesor"});
 Object.assign(ES, {"点一个班：加减学生、填成绩单（期中、期末的笔试和口语，还可以自己加列）、看每节课的考勤记录。": "Toca un grupo para añadir o quitar estudiantes, llenar la libreta de notas (parcial y final, escrito y oral, con columnas propias) y ver la asistencia de cada clase.", "＋ 加学生": "＋ Añadir estudiante", "已加进这个班：{0}": "Añadido al grupo: {0}", "搜学生：名字、学号或电话": "Buscar: nombre, código o teléfono", "没找到？登记新学生": "¿No está? Inscribir estudiante nuevo", "家长姓名": "Nombre del representante", "家长电话": "Teléfono del representante", "办公室之后会补全其他资料。": "La oficina completará el resto de datos.", "登记并加进这个班": "Inscribir y añadir al grupo", "加进来": "Añadir", "没有找到，可以在下面登记新学生": "No se encontró; puedes inscribirlo abajo", "老师登记：{0}": "Inscrito por el profesor: {0}", "保存成绩": "Guardar notas", "学生": "Estudiantes", "考勤记录": "Registro de asistencia", "✓ 到 · 迟 迟到 · ✗ 缺课 · 假 请假，数字是作业分。点日期打开那节课。": "✓ presente · 迟 atraso · ✗ falta · 假 permiso; el número es la nota de tarea. Toca una fecha para abrir esa clase.", "移出这个班": "Quitar del grupo", "已不在班": "Ya no está", "还没有上过课": "Aún no hay clases", "把 {0} 移出 {1}？以前的考勤和成绩会保留。": "¿Quitar a {0} de {1}? Su asistencia y notas anteriores se conservan.", "已移出": "Quitado", "移出": "Quitar", "已删除“{0}”这一列，点“保存成绩”后生效": "Columna «{0}» eliminada; se aplica al guardar las notas"});
+Object.assign(ES, {"Zoom 账号和密码": "Cuentas y contraseñas de Zoom", "{0} 个": "{0}", "复制账号": "Copiar cuenta", "复制密码": "Copiar contraseña", "隐藏": "Ocultar", "在“账号密码”页加一条 Zoom 账号，填同样的邮箱和密码，就会出现在这里": "Añade en «Cuentas y contraseñas» una cuenta de Zoom con el mismo correo y su contraseña, y aparecerá aquí", "还没有密码，请联系管理员": "Aún sin contraseña; pídela al administrador", "密码从“账号密码”页里平台是 Zoom 的账号自动同步过来；所有老师账号都能看到这里的密码。": "Las contraseñas se copian solas de las cuentas de Zoom en «Cuentas y contraseñas»; todas las cuentas de profesor las pueden ver.", "线上课用哪个 Zoom 账号。点空白的格子就能登记自己的课，点已有的时段可以修改。同一个账号同一时间被两位老师用会标红。": "Qué cuenta de Zoom usa cada clase en línea. Toca una celda vacía para registrar tu clase y un bloque existente para cambiarlo. Si dos profesores usan la misma cuenta a la misma hora, se marca en rojo."});
 /* ---------- CSV ---------- */
 async function exportCsv() {
   const head = ["中文名", "西语名 / Nombre", "学号", "C.I. / 护照号", "所属教学点", "状态", "级别", "性别", "出生日期", "登记日期", "电话", "邮箱", "地址", "家长1", "家长1电话", "家长1地址", "家长2", "家长2电话", "最近上课", "下次上课", "欠费", "HSK"].map(k => L(k));
@@ -4103,6 +4141,8 @@ render();
   sub(db.collection("courses").limit(500), "k", "courses");
   sub(db.collection("rooms").limit(300), "r", "rooms");
   sub(db.collection("zoom").limit(500), "z", "zoom");
+  // ready.zp only gates the vault-to-zoompw sync, not the page
+  db.collection("zoompw").limit(200).onSnapshot(snap => { S.zoompw = snap.docs.map(d => ({ id: d.id, ...d.data() })); S.ready.zp = true; zpwSync(); if (S.tab === "zoom") render(); }, () => { S.ready.zp = true; });
   sub(db.collection("holidays").limit(500), "h", "holidays");
   if (tBoot) {
     const tid = FB.claims.tid || "-";

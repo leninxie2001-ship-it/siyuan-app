@@ -23,9 +23,11 @@ service cloud.firestore {
     // 教务 and 老师 accounts never read or write money
     match /payments/{doc} { allow read, write: if seesMoney(); }
     match /vault/{doc} { allow read, write: if signedIn() && request.auth.token.uname in ['shanghen10', 'susi']; }
+    // Zoom passwords only, copied from the vault by its holders so teachers can sign in to Zoom for online classes
+    match /zoompw/{doc} { allow read: if signedIn() || isTeacher(); allow write: if signedIn() && request.auth.token.uname in ['shanghen10', 'susi']; }
 
     match /{col}/{doc} {
-      allow read, write: if signedIn() && !(col in ['meta', 'accounts', 'payments', 'vault']);
+      allow read, write: if signedIn() && !(col in ['meta', 'accounts', 'payments', 'vault', 'zoompw']);
       allow read: if isTeacher() && col in ['students', 'teachers', 'courses', 'classes', 'holidays', 'rooms', 'locations', 'zoom'];
     }
     function onlyChanges(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
