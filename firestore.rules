@@ -17,8 +17,8 @@ service cloud.firestore {
     match /accounts/{uname} {
       allow read: if signedIn() || (isTeacher() && request.auth.token.uname == uname);
       allow create, delete: if isOwner();
-      // the owner edits accounts; anyone may stamp their own last sign-in
-      allow update: if isOwner() || ((signedIn() || isTeacher()) && request.auth.token.uname == uname && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt']));
+      // the owner edits accounts; anyone may stamp their own last sign-in, and clear the "change your first password" flag once they have
+      allow update: if isOwner() || ((signedIn() || isTeacher()) && request.auth.token.uname == uname && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt', 'mustChangePw']) && request.resource.data.get('mustChangePw', false) == false);
     }
     // 教务 and 老师 accounts never read or write money
     match /payments/{doc} { allow read, write: if seesMoney(); }
@@ -35,6 +35,10 @@ service cloud.firestore {
     match /students/{id} {
       allow update: if isTeacher() && onlyChanges(['nameZh', 'nameEs', 'gender', 'birth', 'idNo', 'phone', 'email', 'address', 'parents', 'photo', 'tnote', 'updatedAt', 'updatedBy']);
       allow create: if isTeacher() && request.resource.data.createdBy == request.auth.token.uname && request.resource.data.keys().hasOnly(['nameZh', 'nameEs', 'phone', 'email', 'gender', 'birth', 'parents', 'status', 'level', 'locationId', 'code', 'regDate', 'note', 'createdAt', 'createdBy']);
+    }
+    // a teacher keeps their own profile (contact details, photo, introduction) up to date; name, status and pay stay with the office
+    match /teachers/{id} {
+      allow update: if isTeacher() && id == tid() && onlyChanges(['phone', 'wechat', 'email', 'languages', 'bio', 'photo', 'updatedAt', 'updatedBy']);
     }
     // and add or remove students in their own classes, nothing else about the class
     match /courses/{id} {

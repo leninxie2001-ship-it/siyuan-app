@@ -60,7 +60,7 @@ exports.saveAccount = onCall(opts, async req => {
   // a changed role, teacher link, a stop or a new password signs that person out everywhere
   if (!self && (old.role !== rl || old.active !== on || (old.tid || null) !== tid || pw)) await auth.revokeRefreshTokens(u.uid);
   const now = new Date().toISOString();
-  await ref.set({ name: name || uname, role: rl, active: on, scores: rl === "owner" || (rl !== "teacher" && !!scores), teacherId: tid || FieldValue.delete(), uid: u.uid, updatedAt: now, ...(cur.exists ? {} : { createdAt: now, createdBy: t.uname }) }, { merge: true });
+  await ref.set({ name: name || uname, role: rl, active: on, scores: rl === "owner" || (rl !== "teacher" && !!scores), teacherId: tid || FieldValue.delete(), ...(pw ? { mustChangePw: !self } : {}), uid: u.uid, updatedAt: now, ...(cur.exists ? {} : { createdAt: now, createdBy: t.uname }) }, { merge: true });
   return { ok: true };
 });
 
