@@ -40,18 +40,25 @@ service cloud.firestore {
     match /teachers/{id} {
       allow update: if isTeacher() && id == tid() && onlyChanges(['phone', 'wechat', 'email', 'languages', 'bio', 'photo', 'updatedAt', 'updatedBy']);
     }
-    // a teacher asks the office to cancel one of their sessions or find a substitute, and may withdraw it while it is open
+    // a teacher asks the office to cancel one of their sessions, find a substitute or move it to another day (补课), and may withdraw it while it is open
     match /requests/{id} {
       allow read: if mine();
       allow create: if staysMine() && request.resource.data.createdBy == request.auth.token.uname && request.resource.data.status == 'open'
-        && request.resource.data.kind in ['cancel', 'sub'] && request.resource.data.keys().hasOnly(['kind', 'reason', 'status', 'sessionId', 'courseId', 'date', 'start', 'end', 'label', 'teacherId', 'createdAt', 'createdBy']);
+        && request.resource.data.kind in ['cancel', 'sub', 'move'] && request.resource.data.keys().hasOnly(['kind', 'reason', 'status', 'sessionId', 'courseId', 'date', 'start', 'end', 'label', 'teacherId', 'newDate', 'newStart', 'newEnd', 'createdAt', 'createdBy']);
       allow update: if mine() && resource.data.status == 'open' && request.resource.data.status == 'withdrawn' && onlyChanges(['status', 'updatedAt']);
     }
     // and add or remove students in their own classes, nothing else about the class
+    // a teacher may also schedule classes for themselves, and change or delete the ones they scheduled
+    function madeByMe() { return resource.data.get('createdBy', '') == request.auth.token.uname; }
+    function makingMine() { return staysMine() && request.resource.data.get('createdBy', '') == request.auth.token.uname; }
     match /courses/{id} {
       allow update: if mine() && onlyChanges(['studentIds', 'updatedAt', 'updatedBy']);
+      allow create: if makingMine();
+      allow update, delete: if mine() && madeByMe() && (request.method == 'delete' || makingMine());
     }
     match /classes/{id} {
+      allow create: if makingMine() && request.resource.data.get('courseId', '') == '';
+      allow update, delete: if mine() && madeByMe() && (request.method == 'delete' || makingMine());
       allow update: if isTeacher() && onlyChanges(['studentIds', 'updatedAt', 'updatedBy'])
         && (resource.data.get('teacherId', '') == tid() || (resource.data.get('courseId', '') != '' && get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data.get('teacherId', '') == tid()));
     }
