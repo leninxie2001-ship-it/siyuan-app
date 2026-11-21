@@ -1,0 +1,13 @@
+const admin=require(process.env.HOME+"/siyuan-app/functions/node_modules/firebase-admin");admin.initializeApp({projectId:"siyuan-academia"});const db=admin.firestore();
+(async()=>{const g=async c=>(await db.collection(c).get()).docs.map(d=>({id:d.id,...d.data()}));
+const [st,fa,co,cl,te,lo]=await Promise.all(["students","families","courses","classes","teachers","locations"].map(g));
+const o=[];o.push("T "+te.map(t=>[t.id,t.name,t.nameEs,t.status||""].join("/")).join(" | "));
+o.push("L "+lo.map(l=>l.id+"/"+l.name).join(" | "));
+const sat=x=>(x.slots||[]).some(s=>+s.d===6);
+for(const k of co.filter(k=>sat(k)&&(!k.end||k.end>="2026-11-01")))o.push("K "+[k.id,k.level,k.title,k.teacherId,k.locationId,k.start,k.end,(k.slots||[]).map(s=>s.d+"@"+s.start+"-"+s.end).join(";"),(k.studentIds||[]).join(";")].join("|"));
+for(const c of cl.filter(c=>!c.courseId&&c.date>="2026-11-01"&&new Date(c.date+"T12:00").getDay()===6))o.push("C "+[c.id,c.date,c.start,c.end,c.level,c.title,c.teacherId,c.seriesId||"",(c.studentIds||[]).join(";")].join("|"));
+const fold=s=>String(s||"").replace(/\s+/g,"").toLowerCase();
+for(const s of st)o.push("S "+[s.id,s.nameZh||"",s.nameEs||"",s.huayi?1:0,s.grade||"",s.status||"",s.birth||"",s.locationId||"",s.code||"",(s.parents||[]).map(p=>[p.phone||"",p.wechat||""].join("~")).join(";")].join("|"));
+for(const f of fa)o.push("F "+[f.id,f.name||"",(f.studentIds||[]).join(";")].join("|"));
+o.push("COUNTS students="+st.length+" families="+fa.length+" courses="+co.length);
+require("fs").writeFileSync(process.env.HOME+"/hydump.txt",o.join("\n"));console.log("DUMP_OK",o.length);})().catch(e=>console.log("DUMP_ERR",e.message));
