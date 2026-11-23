@@ -1,6 +1,6 @@
 // temporary one-off: imports the Saturday 华裔 roster from ~/hy.json; removed after the import
 // node hyimport.js check   -> reports conflicts, writes nothing
-// node hyimport.js go      -> writes students and families
+// node hyimport.js go      -> writes students, families and the Saturday courses
 const admin = require(process.env.HOME + "/siyuan-app/functions/node_modules/firebase-admin"); admin.initializeApp({ projectId: "siyuan-academia" }); const db = admin.firestore();
 const D = JSON.parse(require("fs").readFileSync(process.env.HOME + "/hy.json", "utf8"));
 const TN = { "t-wangyuan": "王源", "t-zhanghuixia": "张慧霞", "t-huangyanqi": "黄彦琪", "t-liyang": "李杨", "t-maorongrong": "毛容容", "t-zhangying": "张英" };
@@ -21,6 +21,11 @@ const TN = { "t-wangyuan": "王源", "t-zhanghuixia": "张慧霞", "t-huangyanqi
     note: "周六华裔线下班 · " + TN[s.teacher], createdAt: now, createdBy: "import-huayi"
   });
   for (const f of D.families) b.set(db.collection("families").doc(f.id), { name: f.name, note: "", studentIds: f.studentIds, createdAt: now, createdBy: "import-huayi", updatedAt: now });
+  const K = {}; for (const s of D.students) (K[s.teacher] = K[s.teacher] || { grade: s.grade, ids: [] }).ids.push(s.id);
+  for (const [t, k] of Object.entries(K)) b.set(db.collection("courses").doc("hy26-k-" + t.slice(2)), {
+    level: "华裔 " + k.grade, title: "周六线下", teacherId: t, teacher: "", locationId: "loc-quito", start: "2026-11-28", end: "2027-06-26",
+    slots: [{ d: 6, start: "09:00", end: "16:30" }], studentIds: k.ids, note: "", hours: null, skip: [], extra: [], createdAt: now, createdBy: "import-huayi"
+  });
   await b.commit();
-  console.log("IMPORT_OK", D.students.length, D.families.length);
+  console.log("IMPORT_OK", D.students.length, D.families.length, Object.keys(K).length);
 })().catch(e => console.log("ERR", e.message));
