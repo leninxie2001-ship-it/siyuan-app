@@ -1503,7 +1503,7 @@ const ONLINE_RE = /网课|線上|线上|online|virtual|zoom/i;
 const slotLoc = s => s.locationId || (s.kind === "other" ? (S.locations.find(l => l.type === (ONLINE_RE.test(`${s.place || ""} ${s.grp || ""}`) ? "线上" : "本部"))?.id || "") : "");
 function tWeek(x, days, loc = "") {
   const cols = days.map(() => []), clash = [];
-  for (const c of CL()) if (c.teacherId === x.id && c.start && c.end && (!loc || c.locationId === loc)) { const i = days.indexOf(c.date); if (i >= 0) cols[i].push({ start: c.start, end: c.end, kind: "siyuan", place: cname(c), online: locOf(c.locationId)?.type === "线上" }); }
+  for (const c of CL()) if (c.teacherId === x.id && c.start && c.end && (!loc || c.locationId === loc)) { const i = days.indexOf(c.date); if (i >= 0) cols[i].push({ id: c.id, start: c.start, end: c.end, kind: "siyuan", place: cname(c), online: locOf(c.locationId)?.type === "线上" }); }
   for (const s of tSlots(x)) { if (loc && slotLoc(s) !== loc) continue; const i = (+s.d + 6) % 7; if (!cols[i].some(y => y.start <= s.start && y.end >= s.end && ((y.kind === "siyuan" && s.kind === "other") || (y.start === s.start && y.end === s.end)))) cols[i].push(s); }
   cols.forEach((col, i) => {
     col.sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
@@ -1535,7 +1535,8 @@ function ttData() {
   return { days, rows, rest: S.loc ? [] : all.filter(r => !rows.includes(r)) };
 }
 const tsLabel = s => [s.place, s.grp].filter(Boolean).join(" ");
-const tsChip = s => `<div class="ts ts-${s.kind}"><b>${tRange(s)}</b>${tsLabel(s) ? `<small>${esc(tsLabel(s))}</small>` : ""}</div>`;
+// a Siyuan class opens that day's class details; the rest of the row still opens the teacher's timetable
+const tsChip = s => `<div class="ts ts-${s.kind}"${s.id && !isTch() ? ` data-cls="${esc(s.id)}" title="${esc(L("课程详情"))}" style="cursor:pointer"` : ""}><b>${tRange(s)}</b>${tsLabel(s) ? `<small>${esc(tsLabel(s))}</small>` : ""}</div>`;
 const detHtml = r => `${r.det.map(e => `<div class="dl"><span class="ts ts-${e.kind}">${esc(e.place || L(TSK[e.kind] || "其他课程"))}</span><span class="dd">${esc(dayList(e.days))}</span>${e.note ? `<span class="dn">${esc(e.note)}</span>` : ""}</div>`).join("")}${r.x.courseNote ? `<div class="dx">${esc(r.x.courseNote)}</div>` : ""}`;
 const detText = r => [...r.det.map(e => [e.place || L(TSK[e.kind] || "其他课程"), dayList(e.days), e.note].filter(Boolean).join(" · ")), r.x.courseNote].filter(Boolean).join("\n");
 function viewTT() {
