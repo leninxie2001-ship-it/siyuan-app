@@ -1342,14 +1342,14 @@ function tSlots(x) {
   return out.sort(bySlot);
 }
 // One teacher's week: Siyuan classes come from the schedule, so holidays, cancellations and new courses show up by themselves.
-// A day where two slots overlap is marked.
+// A day where two slots overlap is marked. A hand-kept "other" slot that falls inside a Siyuan class that day is that class written by hand, so the class stands for it; partner-school slots still show as a clash.
 // which teaching site a timetable slot belongs to: Siyuan classes and partner schools say so; other classes count as online when their name says 网课/线上/online, otherwise as the main site
 const ONLINE_RE = /网课|線上|线上|online|virtual|zoom/i;
 const slotLoc = s => s.locationId || (s.kind === "other" ? (S.locations.find(l => l.type === (ONLINE_RE.test(`${s.place || ""} ${s.grp || ""}`) ? "线上" : "本部"))?.id || "") : "");
 function tWeek(x, days, loc = "") {
   const cols = days.map(() => []), clash = [];
   for (const c of CL()) if (c.teacherId === x.id && c.start && c.end && (!loc || c.locationId === loc)) { const i = days.indexOf(c.date); if (i >= 0) cols[i].push({ start: c.start, end: c.end, kind: "siyuan", place: cname(c), online: locOf(c.locationId)?.type === "线上" }); }
-  for (const s of tSlots(x)) { if (loc && slotLoc(s) !== loc) continue; const i = (+s.d + 6) % 7; if (!cols[i].some(y => y.start === s.start && y.end === s.end)) cols[i].push(s); }
+  for (const s of tSlots(x)) { if (loc && slotLoc(s) !== loc) continue; const i = (+s.d + 6) % 7; if (!cols[i].some(y => y.start <= s.start && y.end >= s.end && ((y.kind === "siyuan" && s.kind === "other") || (y.start === s.start && y.end === s.end)))) cols[i].push(s); }
   cols.forEach((col, i) => {
     col.sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
     let end = 0; for (const s of col) { const a = toMin(s.start), b = toMin(s.end); if (a < end) clash[i] = true; end = Math.max(end, b); }
