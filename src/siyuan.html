@@ -474,7 +474,7 @@ const ES = {
   "你目前是查看权限，只能看，不能修改。需要修改请让管理员把你设为编辑者。": "Solo tienes permiso de lectura. Para editar, pide al administrador que te haga editor.",
   "上课中的学生": "Estudiantes en clases", "本周课程": "Clases esta semana", "{0}收款": "Cobrado en {0}",
   "需要检查的学生": "Estudiantes por revisar", "超过 {0} 天没有上课，也没有排后续的课": "Más de {0} días sin clase y sin clases programadas",
-  "最近上课 {0}": "Última clase {0}", "还没有上课记录": "Sin clases registradas", "已 {0} 天": "{0} días", "{0} 天没上课": "{0} días sin clase", "登记已 {0} 天": "Inscrito hace {0} días", "暂停中的学生 {0} 人：超过 {1} 天没确认": "{0} estudiantes en pausa sin revisar en más de {1} días", "状态不变，记为已确认": "Mantener el estado y marcar como revisado", "点一个状态按钮，就表示已经联系确认过，加粗的是现在的状态。之后 {0} 天内不再提醒，暂停的学生 {1} 天。": "Al pulsar un estado se marca como revisado; el estado actual está en negrita. No vuelve a avisar en {0} días ({1} días si está en pausa).", "上次确认 {0}": "Revisado {0}",
+  "最近上课 {0}": "Última clase {0}", "还没有上课记录": "Sin clases registradas", "已 {0} 天": "{0} días", "第二段": "2.º tramo", "＋ 第二段": "＋ 2.º tramo", "{0} 天没上课": "{0} días sin clase", "登记已 {0} 天": "Inscrito hace {0} días", "暂停中的学生 {0} 人：超过 {1} 天没确认": "{0} estudiantes en pausa sin revisar en más de {1} días", "状态不变，记为已确认": "Mantener el estado y marcar como revisado", "点一个状态按钮，就表示已经联系确认过，加粗的是现在的状态。之后 {0} 天内不再提醒，暂停的学生 {1} 天。": "Al pulsar un estado se marca como revisado; el estado actual está en negrita. No vuelve a avisar en {0} días ({1} días si está en pausa).", "上次确认 {0}": "Revisado {0}",
   "排课": "Programar", "＋ 排课": "＋ Programar clase",
   "目前没有需要检查的学生。": "No hay estudiantes por revisar.",
   "点一个状态按钮，就表示已经联系确认过。状态会更新，这个提醒 {0} 天内不再出现。": "Al pulsar un estado se marca como revisado: el estado se actualiza y el aviso no vuelve a salir en {0} días.",
@@ -734,8 +734,10 @@ function CL() {
 }
 const kStat = k => { const t = today(); return k.start > t ? "未开始" : k.end && k.end < t ? "已结束" : "进行中"; };
 const kPill = k => { const x = kStat(k); return `<span class="pill ${{ 进行中: "st-上课中", 未开始: "st-待排课", 已结束: "st-不上课了" }[x]}">${L(x)}</span>`; };
+// the weekly slots in the course form: each ticked day, plus its second period when both times are filled
+const formSlots = fd => fd.getAll("wd").flatMap(d => [{ d: +d, start: fd.get("ws" + d) || "", end: fd.get("we" + d) || "" }, ...(fd.get("xs" + d) && fd.get("xe" + d) ? [{ d: +d, start: fd.get("xs" + d), end: fd.get("xe" + d) }] : [])]);
 function slotText(k) {
-  const g = {}; for (const sl of (k.slots || []).slice().sort((a, b) => ((+a.d + 6) % 7) - ((+b.d + 6) % 7))) (g[`${sl.start}–${sl.end}`] ||= []).push(WD[S.lang][+sl.d]);
+  const g = {}; for (const sl of (k.slots || []).slice().sort((a, b) => ((+a.d + 6) % 7) - ((+b.d + 6) % 7) || (a.start || "").localeCompare(b.start || ""))) (g[`${sl.start}–${sl.end}`] ||= []).push(WD[S.lang][+sl.d]);
   return Object.entries(g).map(([tm, ds]) => `${ds.join(S.lang === "es" ? ", " : "、")} ${tm}`).join("; ");
 }
 const byName = (a, b) => (a.name || "").localeCompare(b.name || "", "zh");
@@ -1207,7 +1209,8 @@ function nextLevelForm(k) {
 }
 function courseForm(k, preset) {
   const isNew = !k; k = k || preset || { start: today(), slots: [], studentIds: [], locationId: S.loc || "", teacherId: S.tchF || "" };
-  const sl = d => (k.slots || []).find(x => String(x.d) === d);
+  // a weekday can have a second period, e.g. morning and afternoon with lunch in between
+  const sl = (d, n = 0) => (k.slots || []).filter(x => String(x.d) === d).sort((a, b) => (a.start || "").localeCompare(b.start || ""))[n];
   const cancelled = isNew ? [] : S.classes.filter(c => c.courseId === k.id && c.cancelled).sort((a, b) => a.date.localeCompare(b.date));
   const el = openSheet(`<form id="kform" style="display:grid;gap:12px">
     <div class="row"><h2>${L(isNew ? k.prevId ? "开下一级" : "新建班级" : "编辑班级")}</h2><span class="spacer"></span><button type="button" class="btn" data-close>${L("取消")}</button><button class="btn primary">${L("保存")}</button></div>
@@ -1225,7 +1228,7 @@ function courseForm(k, preset) {
       <label class="f">${L("开始日期")}<input name="start" data-dp readonly autocomplete="off" placeholder="YYYY-MM-DD" value="${esc(k.start)}" required></label>
       <label class="f">${L("结束日期")}<input name="end" data-dp readonly autocomplete="off" placeholder="YYYY-MM-DD" value="${esc(k.end)}"></label>
     </div>
-    <div class="panel"><h3>${L("每周上课")}</h3><div style="display:grid;gap:6px">${WDAYS.map((d, i) => { const x = sl(d); return `<div class="row" style="gap:8px"><label style="display:flex;align-items:center;gap:6px;min-width:80px;margin:0"><input type="checkbox" name="wd" style="width:auto" value="${d}" ${x ? "checked" : ""}> ${L(WDN[i])}</label><input type="time" name="ws${d}" value="${esc(x?.start || "")}" style="width:auto"> – <input type="time" name="we${d}" value="${esc(x?.end || "")}" style="width:auto"></div>`; }).join("")}</div></div>
+    <div class="panel"><h3>${L("每周上课")}</h3><div style="display:grid;gap:6px">${WDAYS.map((d, i) => { const x = sl(d); return `<div class="row" style="gap:8px"><label style="display:flex;align-items:center;gap:6px;min-width:80px;margin:0"><input type="checkbox" name="wd" style="width:auto" value="${d}" ${x ? "checked" : ""}> ${L(WDN[i])}</label><input type="time" name="ws${d}" value="${esc(x?.start || "")}" style="width:auto"> – <input type="time" name="we${d}" value="${esc(x?.end || "")}" style="width:auto">${sl(d, 1) ? "" : `<button type="button" class="btn small" data-addx>${L("＋ 第二段")}</button>`}<span class="row x2" style="gap:8px" ${sl(d, 1) ? "" : "hidden"}><span class="muted" style="font-size:12.5px">${L("第二段")}</span><input type="time" name="xs${d}" value="${esc(sl(d, 1)?.start || "")}" style="width:auto" aria-label="${L("第二段")}"> – <input type="time" name="xe${d}" value="${esc(sl(d, 1)?.end || "")}" style="width:auto" aria-label="${L("第二段")}"></span></div>`; }).join("")}</div></div>
     <div class="panel" id="kcal"></div>
     ${stuPanel()}
     ${!isNew && k.createdBy ? `<p class="muted" style="margin:0;font-size:12.5px">${esc(L("由 {0} 在 {1} 排的课", k.createdBy, fmtTime(k.createdAt)))}</p>` : ""}
@@ -1241,26 +1244,27 @@ function courseForm(k, preset) {
   const dr = { skip: [...(k.skip || [])], extra: (k.extra || []).map(x => ({ ...x })) }; let autoEnd = isNew || !k.end;
   const endIn = el.querySelector("[name=end]");
   const cal = () => { const fd = new FormData($("#kform", el)), lv = levelVal(fd, "level"), H = Number(fd.get("hours")) || 0;
-    const kd = { ...dr, start: fd.get("start"), end: endIn.value, slots: fd.getAll("wd").map(d => ({ d: +d, start: fd.get("ws" + d) || "", end: fd.get("we" + d) || "" })) };
+    const kd = { ...dr, start: fd.get("start"), end: endIn.value, slots: formSlots(fd) };
     if (!kd.start) { $("#kcal", el).innerHTML = ""; return; }
     let dates;
     if (autoEnd && H) { dates = courseDates(kd, null, null, H); if (dates.length) endIn.value = kd.end = dates[dates.length - 1].date; }
     else dates = courseDates(kd, kd.start, kd.end || addDays(kd.start, 120));
     $("#kcal", el).innerHTML = calHtml(kd, dates, H, lv) + (H && !autoEnd ? `<div class="row"><button type="button" class="btn small" data-autoend>${L("按课时自动排")}</button></div>` : ""); };
-  el.addEventListener("input", e => { if (e.target === endIn) { autoEnd = false; cal(); } else if (/^(start|hours|ws\d|we\d)$/.test(e.target.name)) cal(); });
-  el.addEventListener("change", e => { if (e.target !== endIn && /^(level|hours|start|wd|ws\d|we\d)$/.test(e.target.name)) cal(); });
-  el.addEventListener("click", e => { const c = e.target.closest("[data-cd]"); if (c) { const fd = new FormData($("#kform", el)), kd = { skip: dr.skip, extra: dr.extra, slots: fd.getAll("wd").map(d => ({ d: +d, start: fd.get("ws" + d) || "", end: fd.get("we" + d) || "" })) }; toggleDay(kd, c.dataset.cd); dr.skip = kd.skip; dr.extra = kd.extra; cal(); }
+  el.addEventListener("input", e => { if (e.target === endIn) { autoEnd = false; cal(); } else if (/^(start|hours|[wx][se]\d)$/.test(e.target.name)) cal(); });
+  el.addEventListener("change", e => { if (e.target !== endIn && /^(level|hours|start|wd|[wx][se]\d)$/.test(e.target.name)) cal(); });
+  el.addEventListener("click", e => { const c = e.target.closest("[data-cd]"); if (c) { const fd = new FormData($("#kform", el)), kd = { skip: dr.skip, extra: dr.extra, slots: formSlots(fd) }; toggleDay(kd, c.dataset.cd); dr.skip = kd.skip; dr.extra = kd.extra; cal(); }
     if (e.target.closest("[data-autoend]")) { autoEnd = true; cal(); } });
   cal();
   el.addEventListener("click", e => {
     if (e.target.closest("[data-close]")) closeSheet();
     if (e.target.closest("[data-nextlv]")) return nextLevelForm(k);
+    const ax = e.target.closest("[data-addx]"); if (ax) { const r = ax.parentElement; r.querySelector(".x2").hidden = false; r.querySelector("[name=wd]").checked = true; ax.remove(); r.querySelector("[name^=xs]").focus(); }
     const rs = e.target.closest("[data-restore]"); if (rs) { remove("classes", rs.dataset.restore).then(() => { rs.previousElementSibling.remove(); rs.remove(); toast(L("已恢复")); }); }
     if (e.target.closest("[data-delk]")) confirmBox(L("删除班级 {0}？", cname(k)), L("班级和它生成的课都会删除，学生资料和付款不受影响。"), async () => { if (!isTch()) for (const c of S.classes.filter(c => c.courseId === k.id)) await remove("classes", c.id); await remove("courses", k.id); closeSheet(); toast(L("已删除")); });
   });
   $("#kform", el).addEventListener("submit", async e => {
     e.preventDefault(); const fd = new FormData(e.target);
-    const slots = fd.getAll("wd").map(d => ({ d: +d, start: fd.get("ws" + d) || "", end: fd.get("we" + d) || "" }));
+    const slots = formSlots(fd);
     if (!slots.length && !dr.extra.length) return toast(L("请至少选一天上课"));
     if (!fd.get("start")) return toast(L("请填写开始日期"));
     if (!pick.ok()) return;
