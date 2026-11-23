@@ -38,6 +38,8 @@ nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto }
 /* the office header takes its own full-width line, so switching headings never shifts the buttons */
 nav.tabs.grouped { flex-basis: 100%; margin-left: 0; align-items: center }
 nav.tabs.grouped #locpick { margin-left: auto !important }
+/* the chosen heading is solid green, the chosen page under it pale green */
+nav.tabs.grouped > button[aria-current="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600 }
 nav.tabs button { border: 0; background: none; color: var(--muted); font: inherit; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 500 }
 nav.tabs button[aria-current="true"] { background: var(--accent-soft); color: var(--accent) }
 .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-left: 6px }
