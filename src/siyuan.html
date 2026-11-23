@@ -35,12 +35,15 @@ header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px
 .brand h1 { font-family: var(--f-display); font-size: 19px; margin: 0; letter-spacing: .04em }
 .brand small { display: block; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase }
 nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto }
+/* the office header takes its own full-width line, so switching headings never shifts the buttons */
+nav.tabs.grouped { flex-basis: 100%; margin-left: 0; align-items: center }
+nav.tabs.grouped #locpick { margin-left: auto !important }
 nav.tabs button { border: 0; background: none; color: var(--muted); font: inherit; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 500 }
 nav.tabs button[aria-current="true"] { background: var(--accent-soft); color: var(--accent) }
 .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-left: 6px }
 nav.tabs .lang button { border-radius: 0; padding: 6px 10px; font-size: 12.5px }
 nav.tabs .lang button[aria-pressed="true"] { background: var(--fg); color: var(--bg) }
-nav.tabs .subtabs { order: 99; flex-basis: 100%; display: flex; gap: 4px; flex-wrap: wrap; border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 2px }
+nav.tabs .subtabs { order: 99; flex-basis: 100%; min-height: 40px; display: flex; gap: 4px; flex-wrap: wrap; border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 2px }
 nav.tabs .subtabs button { font-size: 13.5px; padding: 5px 10px }
 nav.tabs .count { background: var(--seal); color: #fff; border-radius: 9px; font-size: 11px; padding: 0 6px; margin-left: 4px }
 nav.tabs .acctbtn { margin-left: 6px; border: 1px solid var(--line); color: var(--fg); padding: 5px 10px; font-size: 12.5px; max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
@@ -936,8 +939,9 @@ function renderChrome() {
     const cur = groups.find(([, ks]) => ks.includes(S.tab)) || groups[0];
     S.lastTabIn = S.lastTabIn || {}; S.lastTabIn[cur[0]] = S.tab;
     nav = groups.map(([g, ks]) => { const go = ks.includes(S.lastTabIn[g]) ? S.lastTabIn[g] : ks[0]; return `<button data-tab="${go}" aria-current="${g === cur[0]}">${L(g)}${badge(ks.reduce((a, k) => a + cnt(k), 0))}</button>`; }).join("");
-    if (cur[1].length > 1) nav += `<div class="subtabs">${cur[1].map(k => tabBtn([k, have[k]])).join("")}</div>`;
+    nav += `<div class="subtabs">${cur[1].length > 1 ? cur[1].map(k => tabBtn([k, have[k]])).join("") : ""}</div>`;
   }
+  $("#tabs").classList.toggle("grouped", !!S.acct && !isTch());
   $("#tabs").innerHTML = nav
     + (S.acct && !isTch() && S.locations.length ? `<select id="locpick" aria-label="${L("教学点")}" style="width:auto;margin-left:6px"><option value="">${L("全部教学点")}</option>${S.locations.slice().sort(byLoc).map(l => `<option value="${l.id}" ${S.loc === l.id ? "selected" : ""}>${esc(lname(l))}</option>`).join("")}</select>` : "")
     + `<span class="lang" role="group" aria-label="Language"><button data-lang="zh" aria-pressed="${S.lang === "zh"}">中文</button><button data-lang="es" aria-pressed="${S.lang === "es"}">Español</button></span>`
