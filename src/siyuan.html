@@ -781,7 +781,8 @@ const alertRow = ({ s, lc, d }) => `
 function alerts() {
   const t = today(); const out = [];
   for (const s of S.students) {
-    if (s.status === "不上课了" || !inLoc(s) || isExam(s)) continue;
+    // online 华裔 students are taught by the 华裔网课 teachers outside our timetable, so a missing next class means nothing
+    if (s.status === "不上课了" || !inLoc(s) || isExam(s) || isHyOn(s)) continue;
     if (nextClass(s.id)) continue;
     const lc = lastClass(s.id), paused = s.status === "暂停";
     const latest = a => a.filter(Boolean).sort().pop() || t;
