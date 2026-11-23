@@ -214,6 +214,14 @@ html.fb [data-gsimport], html.fb [data-regimport], html.fb [data-webpull] { disp
 .attph img { width: 100%; height: 100%; object-fit: cover; display: block }
 .attph0 { width: 100%; aspect-ratio: 4 / 3; border: 1px dashed var(--line); border-radius: 6px; display: grid; place-items: center; text-align: center; padding: 8px; color: var(--muted); font-size: 13px }
 .attph label.busy { opacity: .6; pointer-events: none }
+.kinfo { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 16px; background: var(--sunken); border-radius: var(--r); padding: 12px 14px }
+.kinfo > div { display: grid; gap: 2px; font-size: 14px } .kinfo .muted { font-size: 12px }
+.kfold > summary { cursor: pointer; list-style: revert } .kfold[open] > summary { margin-bottom: 8px }
+.ksess { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: var(--surface) }
+.ksess > summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center }
+.ksess .ksbody { display: grid; gap: 8px; margin-top: 8px }
+.ksess .attth { display: flex; gap: 8px } .ksess .attth img, .ksess .attth .th { width: 96px; height: 72px; object-fit: cover; border-radius: 6px; display: grid; place-items: center }
+.pill.att-p { background: var(--accent-soft) } .pill.att-l { background: #fdf0d5 } .pill.att-a { background: #f8dcd8 } .pill.att-x { background: var(--sunken) }
 .docfile { gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px } .docfile a { word-break: break-all }
 #docup.busy { opacity: .6; pointer-events: none }
 .attph[tabindex]:focus, .attph.drop { outline: 2px solid var(--accent); outline-offset: 2px }
@@ -480,7 +488,7 @@ const ES = {
   "你目前是查看权限，只能看，不能修改。需要修改请让管理员把你设为编辑者。": "Solo tienes permiso de lectura. Para editar, pide al administrador que te haga editor.",
   "上课中的学生": "Estudiantes en clases", "本周课程": "Clases esta semana", "{0}收款": "Cobrado en {0}",
   "需要检查的学生": "Estudiantes por revisar", "超过 {0} 天没有上课，也没有排后续的课": "Más de {0} días sin clase y sin clases programadas",
-  "最近上课 {0}": "Última clase {0}", "还没有上课记录": "Sin clases registradas", "已 {0} 天": "{0} días", "对应系统里的班（可选）": "Grupo del sistema (opcional)", "不对应（只记人数）": "Ninguno (solo el número)", "选了以后，点这一行就打开那个班，能看到学生名单，人数也按名单算。": "Al elegirlo, esta fila abre ese grupo con su lista de estudiantes, y el número sale de la lista.", "修改班级": "Editar grupo", "文件库": "Archivos", "合作协议": "Convenio", "合同": "Contrato", "证书 / 许可": "Certificado / Permiso", "已归档": "Archivado", "已过期 {0} 天": "Vencido hace {0} días", "{0} 天后到期": "Vence en {0} días", "{0} 份": "{0}", "＋ 新文件": "＋ Nuevo documento", "搜名称、对方单位、文件名": "Buscar nombre, institución o archivo", "全部类别": "Todas las categorías", "显示已归档": "Mostrar archivados", "名称": "Nombre", "类别": "Categoría", "对方单位": "Institución", "签署日期": "Fecha de firma", "到期": "Vence", "文件": "Archivos", "没有符合的文件。": "No hay documentos que coincidan.", "还没有文件。点“＋ 新文件”上传第一份合作协议。": "Aún no hay documentos. Pulsa «＋ Nuevo documento» para subir el primer convenio.", "PDF、Word、Excel、图片都可以传，每个文件最多 25 MB。填了到期日的，到期前 {0} 天首页会提醒。老师账号看不到这里。": "Se pueden subir PDF, Word, Excel e imágenes, hasta 25 MB cada uno. Si tiene fecha de vencimiento, se avisa {0} días antes. Las cuentas de profesor no ven esta sección.", "移除": "Quitar", "还没有文件": "Sin archivos", "新文件": "Nuevo documento", "文件资料": "Documento", "例：与 Liceo Matovelle 的合作协议 2026": "Ej.: Convenio con Liceo Matovelle 2026", "学校、机构的名字": "Nombre del colegio o institución", "到期日期": "Fecha de vencimiento", "例：每年 3 月续签，联系人 María": "Ej.: se renueva cada marzo, contacto María", "＋ 上传文件": "＋ Subir archivo", "已归档（不再提醒，列表里默认不显示）": "Archivado (sin avisos; oculto en la lista por defecto)", "{0} 由 {1} 上传": "{0} · subido por {1}", "删除这份文件": "Eliminar documento", "删除“{0}”和它的所有附件记录？": "¿Eliminar «{0}» y todos sus archivos?", "{0} 太大了，最多 25 MB": "{0} es demasiado grande (máx. 25 MB)", "到期日期不能早于签署日期": "La fecha de vencimiento no puede ser anterior a la firma", "快到期的文件": "Documentos por vencer", "{0} 天内到期或已过期的合作协议、合同": "Convenios y contratos vencidos o que vencen en {0} días", "点一下这里，再按 Ctrl+V 粘贴截图": "Haz clic aquí y pega una captura con Ctrl+V", "也可以点这里，按 Ctrl+V 粘贴截图": "O haz clic aquí y pega una captura con Ctrl+V", "剪贴板里没有图片，先截图或复制一张图片": "No hay imagen en el portapapeles; primero haz una captura o copia una imagen", "第二段": "2.º tramo", "＋ 第二段": "＋ 2.º tramo", "{0} 天没上课": "{0} días sin clase", "登记已 {0} 天": "Inscrito hace {0} días", "暂停中的学生 {0} 人：超过 {1} 天没确认": "{0} estudiantes en pausa sin revisar en más de {1} días", "状态不变，记为已确认": "Mantener el estado y marcar como revisado", "点一个状态按钮，就表示已经联系确认过，加粗的是现在的状态。之后 {0} 天内不再提醒，暂停的学生 {1} 天。": "Al pulsar un estado se marca como revisado; el estado actual está en negrita. No vuelve a avisar en {0} días ({1} días si está en pausa).", "上次确认 {0}": "Revisado {0}",
+  "最近上课 {0}": "Última clase {0}", "还没有上课记录": "Sin clases registradas", "已 {0} 天": "{0} días", "修改": "Editar", "{0} 节": "{0} clases", "日期": "Fechas", "未定": "sin definir", "下一节 {0}": "Próxima: {0}", "排课人": "Programado por", "每节课的考勤": "Asistencia por clase", "已上 {0} 节，点一节展开": "{0} clases dadas; toca una para abrirla", "还没有上过课": "Aún no hay clases dadas", "这节课还没有登记考勤。": "Esta clase aún no tiene asistencia registrada.", "满分 {0}": "sobre {0}", "出勤 = 到 + 迟到，除以已登记的课。点学生名字看学生资料。": "Asistencia = presentes + atrasos, sobre las clases registradas. Toca un nombre para ver la ficha.", "对应系统里的班（可选）": "Grupo del sistema (opcional)", "不对应（只记人数）": "Ninguno (solo el número)", "选了以后，点这一行就打开那个班，能看到学生名单，人数也按名单算。": "Al elegirlo, esta fila abre ese grupo con su lista de estudiantes, y el número sale de la lista.", "修改班级": "Editar grupo", "文件库": "Archivos", "合作协议": "Convenio", "合同": "Contrato", "证书 / 许可": "Certificado / Permiso", "已归档": "Archivado", "已过期 {0} 天": "Vencido hace {0} días", "{0} 天后到期": "Vence en {0} días", "{0} 份": "{0}", "＋ 新文件": "＋ Nuevo documento", "搜名称、对方单位、文件名": "Buscar nombre, institución o archivo", "全部类别": "Todas las categorías", "显示已归档": "Mostrar archivados", "名称": "Nombre", "类别": "Categoría", "对方单位": "Institución", "签署日期": "Fecha de firma", "到期": "Vence", "文件": "Archivos", "没有符合的文件。": "No hay documentos que coincidan.", "还没有文件。点“＋ 新文件”上传第一份合作协议。": "Aún no hay documentos. Pulsa «＋ Nuevo documento» para subir el primer convenio.", "PDF、Word、Excel、图片都可以传，每个文件最多 25 MB。填了到期日的，到期前 {0} 天首页会提醒。老师账号看不到这里。": "Se pueden subir PDF, Word, Excel e imágenes, hasta 25 MB cada uno. Si tiene fecha de vencimiento, se avisa {0} días antes. Las cuentas de profesor no ven esta sección.", "移除": "Quitar", "还没有文件": "Sin archivos", "新文件": "Nuevo documento", "文件资料": "Documento", "例：与 Liceo Matovelle 的合作协议 2026": "Ej.: Convenio con Liceo Matovelle 2026", "学校、机构的名字": "Nombre del colegio o institución", "到期日期": "Fecha de vencimiento", "例：每年 3 月续签，联系人 María": "Ej.: se renueva cada marzo, contacto María", "＋ 上传文件": "＋ Subir archivo", "已归档（不再提醒，列表里默认不显示）": "Archivado (sin avisos; oculto en la lista por defecto)", "{0} 由 {1} 上传": "{0} · subido por {1}", "删除这份文件": "Eliminar documento", "删除“{0}”和它的所有附件记录？": "¿Eliminar «{0}» y todos sus archivos?", "{0} 太大了，最多 25 MB": "{0} es demasiado grande (máx. 25 MB)", "到期日期不能早于签署日期": "La fecha de vencimiento no puede ser anterior a la firma", "快到期的文件": "Documentos por vencer", "{0} 天内到期或已过期的合作协议、合同": "Convenios y contratos vencidos o que vencen en {0} días", "点一下这里，再按 Ctrl+V 粘贴截图": "Haz clic aquí y pega una captura con Ctrl+V", "也可以点这里，按 Ctrl+V 粘贴截图": "O haz clic aquí y pega una captura con Ctrl+V", "剪贴板里没有图片，先截图或复制一张图片": "No hay imagen en el portapapeles; primero haz una captura o copia una imagen", "第二段": "2.º tramo", "＋ 第二段": "＋ 2.º tramo", "{0} 天没上课": "{0} días sin clase", "登记已 {0} 天": "Inscrito hace {0} días", "暂停中的学生 {0} 人：超过 {1} 天没确认": "{0} estudiantes en pausa sin revisar en más de {1} días", "状态不变，记为已确认": "Mantener el estado y marcar como revisado", "点一个状态按钮，就表示已经联系确认过，加粗的是现在的状态。之后 {0} 天内不再提醒，暂停的学生 {1} 天。": "Al pulsar un estado se marca como revisado; el estado actual está en negrita. No vuelve a avisar en {0} días ({1} días si está en pausa).", "上次确认 {0}": "Revisado {0}",
   "排课": "Programar", "＋ 排课": "＋ Programar clase",
   "目前没有需要检查的学生。": "No hay estudiantes por revisar.",
   "点一个状态按钮，就表示已经联系确认过。状态会更新，这个提醒 {0} 天内不再出现。": "Al pulsar un estado se marca como revisado: el estado se actualiza y el aviso no vuelve a salir en {0} días.",
@@ -1295,6 +1303,43 @@ function nextLevelForm(k) {
   const from = k.end ? addDays(k.end, 1) : today(), first = courseDates({ start: from, slots: k.slots }, from, addDays(from, 90))[0], nl = nextLevel(k.level);
   closeSheet();
   courseForm(null, { level: nl, title: k.title || "", teacherId: k.teacherId || "", teacher: k.teacher || "", locationId: k.locationId || "", roomId: k.roomId || "", room: k.room || "", slots: (k.slots || []).map(x => ({ ...x })), studentIds: [...(k.studentIds || [])], start: first ? first.date : from, hours: LEVEL_HOURS[nl] ?? null, prevId: k.id, note: "" });
+}
+// Opening a class shows it read-only: details, students with their attendance, and each past session folded up. 修改 opens the form.
+function courseView(k) {
+  const t = today(), all = CL().filter(c => c.courseId === k.id).sort(byStart), past = all.filter(c => c.date <= t), next = all.find(c => c.date > t);
+  const sids = k.studentIds || [], loc = locOf(k.locationId), canEdit = !isTch() || k.createdBy === S.acct?.id;
+  const stat = sid => { const o = { p: 0, l: 0, a: 0, x: 0, n: 0, hw: [] }; for (const c of past) { const m = attOf(c.id)?.marks?.[sid]; if (!m?.st) continue; o[m.st]++; o.n++; const a = attOf(c.id); if (m.hw != null && a?.hwTotal) o.hw.push(m.hw / a.hwTotal * 100); } return o; };
+  const pct = (a, b) => b ? `${Math.round(a / b * 100)}%` : "—";
+  const stRows = sids.map(id => { const s = stu(id), o = stat(id); return `<tr><td class="nm"><span data-open="${id}" style="cursor:pointer;text-decoration:underline;text-underline-offset:3px"><b>${esc(s ? sname(s) : id)}</b></span></td><td>${o.p}</td><td>${o.l}</td><td>${o.a}</td><td>${o.x}</td><td><b>${pct(o.p + o.l, o.n)}</b></td><td>${o.hw.length ? Math.round(o.hw.reduce((a, b) => a + b, 0) / o.hw.length) : "—"}</td></tr>`; }).join("");
+  const stLab = Object.fromEntries(ATT_ST);
+  const sessHtml = c => { const a = attOf(c.id), mk = a?.marks || {};
+    return `<details class="ksess"><summary><b>${esc(c.date)} ${esc(wd(c.date))}</b> <span class="muted">${esc(c.start || "")}–${esc(c.end || "")} · ${esc(tLabel(c))}</span> ${attPill(c)} <span class="muted" style="font-size:12.5px">${esc(attCount(c))}</span></summary>
+      <div class="ksbody">${a ? `<div class="attth">${attThumbs(a)}</div>
+        ${a.hwTitle || a.lesson ? `<p style="margin:0;font-size:13.5px">${a.lesson ? `<b>${L("上课内容")}</b>：${esc(a.lesson)}<br>` : ""}${a.hwTitle ? `<b>${L("今天的作业")}</b>：${esc(a.hwTitle)}${a.hwTotal ? ` <span class="muted">(${esc(L("满分 {0}", a.hwTotal))})</span>` : ""}` : ""}</p>` : ""}
+        <div class="tablewrap"><table><thead><tr><th>${L("学生")}</th><th>${L("考勤")}</th><th>${L("作业分")}</th><th>${L("备注")}</th></tr></thead><tbody>${(c.studentIds || sids).map(id => { const m = mk[id] || {}, s = stu(id); return `<tr><td class="nm">${esc(s ? sname(s) : id)}</td><td>${m.st ? `<span class="pill att-${m.st}">${esc(L(stLab[m.st]))}</span>` : `<span class="muted">—</span>`}</td><td>${m.hw ?? ""}</td><td class="wrap">${esc(m.note || "")}</td></tr>`; }).join("")}</tbody></table></div>` : `<p class="muted" style="margin:0">${L("这节课还没有登记考勤。")}</p>`}</div></details>`; };
+  const shown = past.slice().reverse();
+  const el = openSheet(`<div style="display:grid;gap:12px">
+    <div class="row"><h2>${esc(cname(k) || L("班级"))}</h2><span class="pill">${esc(L(kStat(k)))}</span><span class="spacer"></span><button type="button" class="btn" data-close>${L("关闭")}</button>${canEdit ? `<button type="button" class="btn primary" data-kedit>${L("修改")}</button>` : ""}</div>
+    <div class="kinfo">
+      <div><span class="muted">${L("老师")}</span><b>${esc(tLabel({ ...k, teacherId: k.teacherId }))}</b></div>
+      <div><span class="muted">${L("上课时间")}</span><b>${esc(slotText(k) || "—")}</b></div>
+      <div><span class="muted">${L("教学点")}</span><b>${esc(loc ? lname(loc) : "—")}${roomName(k) ? ` · ${esc(roomName(k))}` : ""}</b></div>
+      <div><span class="muted">${L("日期")}</span><b>${esc(k.start || "")} → ${esc(k.end || L("未定"))}</b></div>
+      <div><span class="muted">${L("已上")}</span><b>${esc(k.end ? L("{0} / {1} 节", past.length, all.length) : L("{0} 节", past.length))}</b>${next ? `<span class="muted" style="font-size:12px">${esc(L("下一节 {0}", `${next.date} ${next.start || ""}`))}</span>` : ""}</div>
+      ${k.createdBy ? `<div><span class="muted">${L("排课人")}</span><b>${esc(k.createdBy)}</b></div>` : ""}
+    </div>
+    ${k.note ? `<p class="muted" style="margin:0">${esc(k.note)}</p>` : ""}
+    <details class="panel kfold" open><summary><h3 style="display:inline;margin:0">${L("学生")}</h3> <span class="muted">${esc(L("{0} 名", sids.length))}</span></summary>
+      ${sids.length ? `<div class="tablewrap"><table><thead><tr><th>${L("学生")}</th><th>${L("到")}</th><th>${L("迟到")}</th><th>${L("缺课")}</th><th>${L("请假")}</th><th>${L("出勤")}</th><th>${L("作业平均")}</th></tr></thead><tbody>${stRows}</tbody></table></div><p class="muted" style="margin:0;font-size:12.5px">${L("出勤 = 到 + 迟到，除以已登记的课。点学生名字看学生资料。")}</p>` : `<p class="muted">${L("这个班还没有学生")}</p>`}
+    </details>
+    <details class="panel kfold" ${past.length <= 6 ? "open" : ""}><summary><h3 style="display:inline;margin:0">${L("每节课的考勤")}</h3> <span class="muted">${esc(L("已上 {0} 节，点一节展开", past.length))}</span></summary>
+      ${shown.length ? `<div style="display:grid;gap:6px">${shown.map(sessHtml).join("")}</div>` : `<p class="muted">${L("还没有上过课")}</p>`}
+    </details>
+  </div>`);
+  el.addEventListener("click", e => {
+    if (e.target.closest("[data-close]")) closeSheet();
+    if (e.target.closest("[data-kedit]")) courseForm(k);
+  });
 }
 function courseForm(k, preset) {
   const isNew = !k; k = k || preset || { start: today(), slots: [], studentIds: [], locationId: S.loc || "", teacherId: S.tchF || "" };
@@ -4612,7 +4657,7 @@ document.addEventListener("click", e => {
   const np = t.closest("[data-newpay]"); if (np) { S.openId = null; paymentForm(null, np.dataset.newpay || ""); return; }
   const cl = t.closest("[data-cls]"); if (cl) { const c = CL().find(x => x.id === cl.dataset.cls) || S._hcls?.find(x => x.id === cl.dataset.cls); S.openId = null; if (c) classForm(c); else toast(L("这节课比较早，不在当前列表里")); return; }
   const gb = t.closest("button[data-group]"); if (gb) { const g = S.groups.find(x => x.id === gb.dataset.group); if (g) groupForm(g); return; }
-  const kk = t.closest("[data-k]"); if (kk) { const k = S.courses.find(x => x.id === kk.dataset.k); S.openId = null; if (k) courseForm(k); return; }
+  const kk = t.closest("[data-k]"); if (kk) { const k = S.courses.find(x => x.id === kk.dataset.k); S.openId = null; if (k) courseView(k); return; }
   const lp = t.closest("[data-locpay]"); if (lp) { S.openId = null; paymentForm(null, "", null, lp.dataset.locpay, lp.dataset.m); return; }
   const py = t.closest("[data-pay]"); if (py) { const p = S.payments.find(x => x.id === py.dataset.pay); S.openId = null; if (p) paymentForm(p); return; }
   if (t.closest("[data-more]")) { S.rn = (S.rn || 60) + 60; render(); return; }
