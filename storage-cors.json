@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://siyuan-academia.web.app", "https://siyuan-academia.firebaseapp.com"],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]
