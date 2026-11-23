@@ -8,10 +8,13 @@ const TN = { "t-wangyuan": "王源", "t-zhanghuixia": "张慧霞", "t-huangyanqi
   const mode = process.argv[2];
   const st = (await db.collection("students").get()).docs.map(d => ({ id: d.id, ...d.data() }));
   const loc = await db.collection("locations").doc("loc-quito").get();
-  const codes = new Set(st.map(s => s.code)), ids = new Set(st.map(s => s.id));
-  const bad = D.students.filter(s => codes.has(s.code) || ids.has(s.id)).map(s => s.id + "/" + s.code);
+  const ids = new Set(st.map(s => s.id));
+  // codes continue after the highest SY code in use right now
+  const top = Math.max(0, ...st.map(s => +((s.code || "").match(/^SY(\d+)$/) || [])[1] || 0));
+  D.students.forEach((s, i) => { s.code = "SY" + String(top + 1 + i).padStart(4, "0"); });
+  const bad = D.students.filter(s => ids.has(s.id)).map(s => s.id);
   const tch = await Promise.all(Object.keys(TN).map(t => db.collection("teachers").doc(t).get()));
-  console.log("students", D.students.length, "families", D.families.length, "conflicts", bad.join(",") || "none", "loc-quito", loc.exists, "teachers", tch.every(t => t.exists));
+  console.log("students", D.students.length, "families", D.families.length, "codes", D.students[0].code + "-" + D.students[D.students.length - 1].code, "conflicts", bad.join(",") || "none", "loc-quito", loc.exists, "teachers", tch.every(t => t.exists));
   if (mode !== "go" || bad.length || !loc.exists) return;
   const now = new Date().toISOString(), b = db.batch();
   for (const s of D.students) b.set(db.collection("students").doc(s.id), {
