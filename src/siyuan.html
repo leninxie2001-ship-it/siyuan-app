@@ -172,9 +172,17 @@ html.fb [data-gsimport], html.fb [data-regimport], html.fb [data-webpull] { disp
 .owebanner b { color: var(--seal) }
 .muted { color: var(--muted) }
 .empty { color: var(--muted); padding: 20px; text-align: center; border: 1px dashed var(--line); border-radius: var(--r) }
-.alert { border-left: 3px solid var(--seal); background: var(--seal-soft); border-radius: 6px; padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center }
+.alert { border-left: 3px solid var(--seal); background: var(--seal-soft); border-radius: 6px; padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px; align-items: center }
+.alert .alhead { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; min-width: 0 }
+.alert .alact { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end }
+.alert .alact .btn.cur { border-color: var(--ink); font-weight: 700 }
+.pausegrp { display: grid; gap: 10px }
+.pausegrp > summary { cursor: pointer; color: var(--muted); font-size: 13.5px; padding: 4px 0 }
+.pausegrp[open] > summary { margin-bottom: 2px }
+.pausegrp .alert { border-left-color: var(--line, #ccc); background: transparent; border: 1px solid var(--line, #ddd); border-left-width: 3px }
+@media (max-width: 760px) { .alert { grid-template-columns: 1fr } .alert .alact { grid-column: 1; grid-row: auto; justify-content: flex-start } }
 .alert .who { font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 3px }
-.alert .why { color: var(--muted); font-size: 12.5px; flex: 1 1 220px }
+.alert .why { color: var(--muted); font-size: 12.5px }
 .banner { background: var(--amber-soft); color: var(--amber); padding: 10px 12px; border-radius: 6px }
 .day { display: grid; grid-template-columns: 88px 1fr; gap: 10px; padding-block: 8px; border-bottom: 1px solid var(--line) }
 .day:last-child { border-bottom: 0 }
@@ -446,6 +454,8 @@ a.btn { text-decoration: none } .btn.wa { background: #25d366; border-color: #25
 <script>
 const STATUSES = ["上课中", "待排课", "试听", "暂停", "不上课了"];
 const ALERT_DAYS = 30;
+// paused students only come back for a check every 90 days
+const PAUSE_DAYS = 90;
 const LEVELS = [...Array.from({ length: 18 }, (_, i) => `Nivel ${i + 1}`), ...Array.from({ length: 6 }, (_, i) => [`HSK ${i + 1}`, `HSK ${i + 1} (individual)`]).flat(), "Curso de niños", "Curso de niños nativos", "Clases particulares"];
 // Firebase build: fb.js sets window.__FB (login, storage URLs, account functions); the claude.ai build leaves it unset
 const FB = window.__FB || null;
@@ -464,7 +474,7 @@ const ES = {
   "你目前是查看权限，只能看，不能修改。需要修改请让管理员把你设为编辑者。": "Solo tienes permiso de lectura. Para editar, pide al administrador que te haga editor.",
   "上课中的学生": "Estudiantes en clases", "本周课程": "Clases esta semana", "{0}收款": "Cobrado en {0}",
   "需要检查的学生": "Estudiantes por revisar", "超过 {0} 天没有上课，也没有排后续的课": "Más de {0} días sin clase y sin clases programadas",
-  "最近上课 {0}": "Última clase {0}", "还没有上课记录": "Sin clases registradas", "已 {0} 天": "{0} días", "上次确认 {0}": "Revisado {0}",
+  "最近上课 {0}": "Última clase {0}", "还没有上课记录": "Sin clases registradas", "已 {0} 天": "{0} días", "{0} 天没上课": "{0} días sin clase", "登记已 {0} 天": "Inscrito hace {0} días", "暂停中的学生 {0} 人：超过 {1} 天没确认": "{0} estudiantes en pausa sin revisar en más de {1} días", "状态不变，记为已确认": "Mantener el estado y marcar como revisado", "点一个状态按钮，就表示已经联系确认过，加粗的是现在的状态。之后 {0} 天内不再提醒，暂停的学生 {1} 天。": "Al pulsar un estado se marca como revisado; el estado actual está en negrita. No vuelve a avisar en {0} días ({1} días si está en pausa).", "上次确认 {0}": "Revisado {0}",
   "排课": "Programar", "＋ 排课": "＋ Programar clase",
   "目前没有需要检查的学生。": "No hay estudiantes por revisar.",
   "点一个状态按钮，就表示已经联系确认过。状态会更新，这个提醒 {0} 天内不再出现。": "Al pulsar un estado se marca como revisado: el estado se actualiza y el aviso no vuelve a salir en {0} días.",
@@ -737,16 +747,22 @@ function mondayOf(s) { const d = parseD(s); const w = (d.getDay() + 6) % 7; d.se
 /* ---------- derived ---------- */
 function lastClass(id) { return CL().last[id] || null; }
 function nextClass(id) { return CL().next[id] || null; }
+const alertRow = ({ s, lc, d }) => `
+      <div class="alert">
+        <div class="alhead"><span class="who" data-open="${s.id}">${esc(sname(s))}</span> ${pill(s.status || "上课中")}</div>
+        <span class="why">${lc ? `${L("最近上课 {0}", lc)} · ${L("{0} 天没上课", d)}` : `${L("还没有上课记录")} · ${L("登记已 {0} 天", d)}`}${s.checkedAt ? ` · ${L("上次确认 {0}", s.checkedAt)}` : ""}</span>
+        <span class="alact">${STATUSES.map(x => `<button class="btn small ${(s.status || "上课中") === x ? "cur" : ""}" data-check="${s.id}" data-st="${x}" title="${esc((s.status || "上课中") === x ? L("状态不变，记为已确认") : "")}">${L(x)}</button>`).join("")}<button class="btn small primary" data-newcls="${s.id}">${L("排课")}</button></span>
+      </div>`;
 function alerts() {
   const t = today(); const out = [];
   for (const s of S.students) {
     if (s.status === "不上课了" || !inLoc(s)) continue;
     if (nextClass(s.id)) continue;
-    const lc = lastClass(s.id);
-    const refs = [lc, s.regDate, s.checkedAt].filter(Boolean).sort();
-    const ref = refs[refs.length - 1] || t;
-    const d = daysBetween(ref, t);
-    if (d >= ALERT_DAYS) out.push({ s, lc, d });
+    const lc = lastClass(s.id), paused = s.status === "暂停";
+    const latest = a => a.filter(Boolean).sort().pop() || t;
+    // the reminder waits from the last class or the last check; the days shown count from the last class only
+    if (daysBetween(latest([lc, s.regDate, s.checkedAt]), t) < (paused ? PAUSE_DAYS : ALERT_DAYS)) continue;
+    out.push({ s, lc, d: daysBetween(latest([lc, s.regDate]), t), paused });
   }
   return out.sort((a, b) => b.d - a.d);
 }
@@ -807,7 +823,7 @@ function renderChrome() {
   $(".wrap")?.classList.toggle("widemain", !!S.acct && S.tab === "teachers");
   $("#brandname").textContent = L("思源中文学校");
   $("#brandsub").textContent = L("内部管理 · Uso interno");
-  const n = alerts().length;
+  const n = alerts().filter(a => !a.paused).length;
   const tabs = S.acct && isTch() ? [["my", "我的课表"], ["att", "考勤"], ["grades", "我的班级"], ["mystu", "我的学生"], ["zoom", "Zoom 使用"], ["prof", "我的资料"]] : S.acct ? [["home", "首页提醒"], ["students", "学生"], ["schedule", "课程安排"], ["tch", "教师"], ["teachers", "教师课表"], ["groups", "班级总表"], ["tatt", "老师考勤"], ["flyer", "开课信息"], ["leads", "意向登记"], ...(noPay() ? [] : [["payments", "付款记录"], ["receipts", "收据"]]), ["loans", "物品借用"], ["staff", "老师和教学点"], ["zoom", "Zoom 使用"], ...(canVault() ? [["vault", "账号密码"]] : [])] : [];
   $("#tabs").innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" aria-current="${S.tab === k}">${L(l)}${k === "home" && n ? `<span class="count">${n}</span>` : ""}${k === "leads" && leadDue().length ? `<span class="count">${leadDue().length}</span>` : ""}${k === "loans" && dueLoans().length ? `<span class="count">${dueLoans().length}</span>` : ""}</button>`).join("")
     + (S.acct && !isTch() && S.locations.length ? `<select id="locpick" aria-label="${L("教学点")}" style="width:auto;margin-left:6px"><option value="">${L("全部教学点")}</option>${S.locations.slice().sort(byLoc).map(l => `<option value="${l.id}" ${S.loc === l.id ? "selected" : ""}>${esc(lname(l))}</option>`).join("")}</select>` : "")
@@ -1099,13 +1115,9 @@ function viewHome() {
   ${dueLoans().length ? `<section class="panel"><div class="row"><h2>${L("该收回的物品")}</h2><span class="muted">${L("到了归还日期还没收回")}</span><span class="spacer"></span><button class="btn small" data-tab="loans">${L("物品借用")}</button></div>${loanTable(dueLoans())}</section>` : ""}
   <section class="panel">
     <div class="row"><h2>${L("需要检查的学生")}</h2><span class="muted">${L("超过 {0} 天没有上课，也没有排后续的课", ALERT_DAYS)}</span></div>
-    ${al.length ? al.map(({ s, lc, d }) => `
-      <div class="alert">
-        <span class="who" data-open="${s.id}">${esc(sname(s))}</span> ${pill(s.status || "上课中")}
-        <span class="why">${lc ? L("最近上课 {0}", lc) : L("还没有上课记录")} · ${L("已 {0} 天", d)}${s.checkedAt ? ` · ${L("上次确认 {0}", s.checkedAt)}` : ""}</span>
-        <span class="row">${STATUSES.map(x => `<button class="btn small" data-check="${s.id}" data-st="${x}">${L(x)}</button>`).join("")}<button class="btn small primary" data-newcls="${s.id}">${L("排课")}</button></span>
-      </div>`).join("") : `<div class="empty">${L("目前没有需要检查的学生。")}</div>`}
-    <p class="muted" style="margin:0;font-size:12.5px">${L("点一个状态按钮，就表示已经联系确认过。状态会更新，这个提醒 {0} 天内不再出现。", ALERT_DAYS)}</p>
+    ${al.some(a => !a.paused) ? al.filter(a => !a.paused).map(alertRow).join("") : `<div class="empty">${L("目前没有需要检查的学生。")}</div>`}
+    ${al.some(a => a.paused) ? `<details class="pausegrp"><summary>${esc(L("暂停中的学生 {0} 人：超过 {1} 天没确认", al.filter(a => a.paused).length, PAUSE_DAYS))}</summary>${al.filter(a => a.paused).map(alertRow).join("")}</details>` : ""}
+    <p class="muted" style="margin:0;font-size:12.5px">${L("点一个状态按钮，就表示已经联系确认过，加粗的是现在的状态。之后 {0} 天内不再提醒，暂停的学生 {1} 天。", ALERT_DAYS, PAUSE_DAYS)}</p>
   </section>
   <section class="panel">
     <div class="row"><h2>${L("今天的课 · {0}", `${t} ${wd(t)}`)}</h2><span class="spacer"></span><button class="btn" data-newcls="">${L("＋ 排课")}</button></div>
