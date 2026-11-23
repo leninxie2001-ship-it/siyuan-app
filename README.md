@@ -7,3 +7,5 @@
 - `functions/`: account management (first owner, create/change/delete accounts).
 
 Deploy: `npx firebase-tools deploy --project siyuan-academia` (the hosting page is built by `node build.js`).
+
+Storage CORS: the app reads photos and receipts back into PDFs and backups with fetch(), which needs the bucket to allow the site's origin. Apply once with `gsutil cors set storage-cors.json gs://siyuan-academia.firebasestorage.app`.
