@@ -214,6 +214,10 @@ html.fb [data-gsimport], html.fb [data-regimport], html.fb [data-webpull] { disp
 .attph img { width: 100%; height: 100%; object-fit: cover; display: block }
 .attph0 { width: 100%; aspect-ratio: 4 / 3; border: 1px dashed var(--line); border-radius: 6px; display: grid; place-items: center; text-align: center; padding: 8px; color: var(--muted); font-size: 13px }
 .attph label.busy { opacity: .6; pointer-events: none }
+.attph[tabindex]:focus, .attph.drop { outline: 2px solid var(--accent); outline-offset: 2px }
+.attph0 { gap: 6px; align-content: center } .attph0 .phpaste { font-size: 12px; opacity: .8 }
+.attph[tabindex]:focus .phpaste { opacity: 1; font-weight: 600 }
+@media (hover: none) { .attph0 .phpaste { display: none } }
 .attlist { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden }
 .attstu { display: grid; grid-template-columns: minmax(150px, 1.3fr) auto 7em minmax(90px, 1fr); gap: 8px 10px; align-items: center; padding: 8px 10px; background: var(--surface); border-top: 1px solid var(--line) }
 .attstu:first-child { border-top: 0 }
@@ -474,7 +478,7 @@ const ES = {
   "你目前是查看权限，只能看，不能修改。需要修改请让管理员把你设为编辑者。": "Solo tienes permiso de lectura. Para editar, pide al administrador que te haga editor.",
   "上课中的学生": "Estudiantes en clases", "本周课程": "Clases esta semana", "{0}收款": "Cobrado en {0}",
   "需要检查的学生": "Estudiantes por revisar", "超过 {0} 天没有上课，也没有排后续的课": "Más de {0} días sin clase y sin clases programadas",
-  "最近上课 {0}": "Última clase {0}", "还没有上课记录": "Sin clases registradas", "已 {0} 天": "{0} días", "第二段": "2.º tramo", "＋ 第二段": "＋ 2.º tramo", "{0} 天没上课": "{0} días sin clase", "登记已 {0} 天": "Inscrito hace {0} días", "暂停中的学生 {0} 人：超过 {1} 天没确认": "{0} estudiantes en pausa sin revisar en más de {1} días", "状态不变，记为已确认": "Mantener el estado y marcar como revisado", "点一个状态按钮，就表示已经联系确认过，加粗的是现在的状态。之后 {0} 天内不再提醒，暂停的学生 {1} 天。": "Al pulsar un estado se marca como revisado; el estado actual está en negrita. No vuelve a avisar en {0} días ({1} días si está en pausa).", "上次确认 {0}": "Revisado {0}",
+  "最近上课 {0}": "Última clase {0}", "还没有上课记录": "Sin clases registradas", "已 {0} 天": "{0} días", "点一下这里，再按 Ctrl+V 粘贴截图": "Haz clic aquí y pega una captura con Ctrl+V", "也可以点这里，按 Ctrl+V 粘贴截图": "O haz clic aquí y pega una captura con Ctrl+V", "剪贴板里没有图片，先截图或复制一张图片": "No hay imagen en el portapapeles; primero haz una captura o copia una imagen", "第二段": "2.º tramo", "＋ 第二段": "＋ 2.º tramo", "{0} 天没上课": "{0} días sin clase", "登记已 {0} 天": "Inscrito hace {0} días", "暂停中的学生 {0} 人：超过 {1} 天没确认": "{0} estudiantes en pausa sin revisar en más de {1} días", "状态不变，记为已确认": "Mantener el estado y marcar como revisado", "点一个状态按钮，就表示已经联系确认过，加粗的是现在的状态。之后 {0} 天内不再提醒，暂停的学生 {1} 天。": "Al pulsar un estado se marca como revisado; el estado actual está en negrita. No vuelve a avisar en {0} días ({1} días si está en pausa).", "上次确认 {0}": "Revisado {0}",
   "排课": "Programar", "＋ 排课": "＋ Programar clase",
   "目前没有需要检查的学生。": "No hay estudiantes por revisar.",
   "点一个状态按钮，就表示已经联系确认过。状态会更新，这个提醒 {0} 天内不再出现。": "Al pulsar un estado se marca como revisado: el estado se actualiza y el aviso no vuelve a salir en {0} días.",
@@ -3830,8 +3834,8 @@ function attForm(c) {
   const ph = { photoStart: a0.photoStart || "", photoEnd: a0.photoEnd || "", photoStartAt: a0.photoStartAt || "", photoEndAt: a0.photoEndAt || "" };
   const ids = [...new Set([...(c.studentIds || []), ...Object.keys(a0.marks || {}).filter(id => stu(id))])];
   const base = () => ({ teacherId: tidW, sessionId: c.id, courseId: c.courseId || "", date: c.date, start: c.start || "", end: c.end || "", level: c.level || "", title: c.title || "", locationId: c.locationId || "", updatedAt: new Date().toISOString(), updatedBy: S.acct?.id || "" });
-  const photoBox = k => { const id = ph[k], lab = k === "photoStart" ? "上课照片" : "下课照片"; return `<div class="attph"><b>${L(lab)}</b>
-    ${id ? `<a href="${blobUrl(id)}" target="_blank" rel="noopener" data-lb="${id}" data-lbcap="${esc(L(lab))}"><img src="${blobUrl(id)}" alt="${esc(L(lab))}"></a><span class="muted" style="font-size:12px">${esc(L("上传于 {0}", fmtTime(ph[k + "At"])))}</span>` : `<div class="attph0">${L(k === "photoStart" ? "上课开始时拍一张全班照片" : "下课时再拍一张")}</div>`}
+  const photoBox = k => { const id = ph[k], lab = k === "photoStart" ? "上课照片" : "下课照片"; return `<div class="attph" data-phbox="${k}" ${future ? "" : 'tabindex="0"'} title="${esc(future ? "" : L("点一下这里，再按 Ctrl+V 粘贴截图"))}"><b>${L(lab)}</b>
+    ${id ? `<a href="${blobUrl(id)}" target="_blank" rel="noopener" data-lb="${id}" data-lbcap="${esc(L(lab))}"><img src="${blobUrl(id)}" alt="${esc(L(lab))}"></a><span class="muted" style="font-size:12px">${esc(L("上传于 {0}", fmtTime(ph[k + "At"])))}</span>` : `<div class="attph0">${L(k === "photoStart" ? "上课开始时拍一张全班照片" : "下课时再拍一张")}${future ? "" : `<small class="phpaste">${L("也可以点这里，按 Ctrl+V 粘贴截图")}</small>`}</div>`}
     <label class="btn small ${id ? "" : "primary"}" ${future ? 'aria-disabled="true"' : ""}>${L(id ? "换一张" : "拍照 / 选照片")}<input type="file" accept="image/*" data-ph="${k}" hidden ${future ? "disabled" : ""}></label></div>`; };
   const row = id => { const s = stu(id), m = a0.marks?.[id] || {}; return `<div class="attstu" data-sid="${id}">
     <span class="row" style="gap:8px;flex-wrap:nowrap;min-width:0">${avatar(s)}<b style="overflow:hidden;text-overflow:ellipsis">${esc(sname(s))}</b></span>
@@ -3869,17 +3873,31 @@ function attForm(c) {
     if (e.target.closest("[data-allp]")) el.querySelectorAll(".attstu").forEach(r => r.querySelectorAll("[data-st]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.st === "p"))));
   });
   // a photo is saved the moment it is uploaded, so it is not lost if the teacher closes the page before 保存
-  el.addEventListener("change", async e => {
-    const inp = e.target.closest("[data-ph]"); if (!inp) return;
-    const f = inp.files[0], k = inp.dataset.ph; inp.value = ""; if (!f) return;
-    const lab = inp.parentElement; lab.classList.add("busy"); lab.firstChild.textContent = L("上传中…");
+  const putPhoto = async (k, f) => {
+    const lab = el.querySelector(`[data-ph="${k}"]`)?.parentElement; if (!lab || lab.classList.contains("busy")) return;
+    lab.classList.add("busy"); lab.firstChild.textContent = L("上传中…");
     const [id] = await uploadImages([f]);
     if (!id) { lab.classList.remove("busy"); lab.firstChild.textContent = L(ph[k] ? "换一张" : "拍照 / 选照片"); return; }
     const at = new Date().toISOString();
     try { await S.db.collection("attendance").doc(c.id).set({ ...base(), [k]: id, [k + "At"]: at }, { merge: true }); ph[k] = id; ph[k + "At"] = at; toast(L("照片已保存")); }
     catch (err) { toast(L("保存失败：{0}", err?.message || err?.code || err)); }
     const box = $("#attphs", el); if (box) box.innerHTML = photoBox("photoStart") + photoBox("photoEnd");
+    el.querySelector(`[data-phbox="${k}"]`)?.focus();
+  };
+  el.addEventListener("change", e => {
+    const inp = e.target.closest("[data-ph]"); if (!inp) return;
+    const f = inp.files[0], k = inp.dataset.ph; inp.value = ""; if (f) putPhoto(k, f);
   });
+  // on a computer: click a photo box, then paste a screenshot (Ctrl+V) or drop an image file on it
+  const imgOf = list => [...(list || [])].map(x => x.getAsFile ? (x.kind === "file" && x.type.startsWith("image/") ? x.getAsFile() : null) : (x.type?.startsWith("image/") ? x : null)).find(Boolean);
+  el.addEventListener("paste", e => {
+    const bx = document.activeElement?.closest?.("[data-phbox]"); if (!bx || future || !el.contains(bx)) return;
+    const f = imgOf(e.clipboardData?.items); if (!f) return toast(L("剪贴板里没有图片，先截图或复制一张图片"));
+    e.preventDefault(); putPhoto(bx.dataset.phbox, f);
+  });
+  el.addEventListener("dragover", e => { const bx = e.target.closest("[data-phbox]"); if (bx && !future) { e.preventDefault(); bx.classList.add("drop"); } });
+  el.addEventListener("dragleave", e => e.target.closest("[data-phbox]")?.classList.remove("drop"));
+  el.addEventListener("drop", e => { const bx = e.target.closest("[data-phbox]"); if (!bx || future) return; e.preventDefault(); bx.classList.remove("drop"); const f = imgOf(e.dataTransfer?.files); if (f) putPhoto(bx.dataset.phbox, f); });
   $("#attform", el).addEventListener("submit", async e => {
     e.preventDefault(); if (future) return;
     const fd = new FormData(e.target), tot = Number(fd.get("hwTotal")) || 100, marks = {};
