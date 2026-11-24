@@ -28,7 +28,7 @@ service cloud.firestore {
 
     match /{col}/{doc} {
       allow read, write: if signedIn() && !(col in ['meta', 'accounts', 'payments', 'vault', 'zoompw']);
-      allow read: if isTeacher() && col in ['students', 'teachers', 'courses', 'classes', 'holidays', 'rooms', 'locations', 'zoom'];
+      allow read: if isTeacher() && col in ['students', 'teachers', 'courses', 'classes', 'holidays', 'rooms', 'locations', 'zoom', 'items', 'loans'];
     }
     function onlyChanges(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
     // teachers may correct a student's contact details and photo, and register a new student with the basics
@@ -45,6 +45,14 @@ service cloud.firestore {
       allow read: if mine();
       allow create: if staysMine() && request.resource.data.createdBy == request.auth.token.uname && request.resource.data.status == 'open'
         && request.resource.data.kind in ['cancel', 'sub', 'move'] && request.resource.data.keys().hasOnly(['kind', 'reason', 'status', 'sessionId', 'courseId', 'date', 'start', 'end', 'label', 'teacherId', 'newDate', 'newStart', 'newEnd', 'createdAt', 'createdBy']);
+      allow update: if mine() && resource.data.status == 'open' && request.resource.data.status == 'withdrawn' && onlyChanges(['status', 'updatedAt']);
+    }
+    // a teacher asks to borrow school items (how many, from and until when); the office approves it, which records the loan, or says no
+    match /itemreqs/{id} {
+      allow read: if mine();
+      allow create: if staysMine() && request.resource.data.createdBy == request.auth.token.uname && request.resource.data.status == 'open'
+        && request.resource.data.qty is int && request.resource.data.qty > 0 && request.resource.data.qty <= 1000
+        && request.resource.data.keys().hasOnly(['teacherId', 'itemId', 'itemName', 'qty', 'outDate', 'dueDate', 'note', 'status', 'createdAt', 'createdBy']);
       allow update: if mine() && resource.data.status == 'open' && request.resource.data.status == 'withdrawn' && onlyChanges(['status', 'updatedAt']);
     }
     // and add or remove students in their own classes, nothing else about the class
