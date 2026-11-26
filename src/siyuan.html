@@ -743,7 +743,7 @@ const tAt = (k, date) => (k.tHist || []).find(h => date < h.until) || k;
 function expandCourse(k, ov, from, to) {
   if (!k.start || !(k.slots || []).length && !(k.extra || []).length) return [];
   return courseDates(k, from, to).map(x => {
-    const tk = tAt(k, x.date), base = { id: sessId(k, x.date, x.start), courseId: k.id, date: x.date, start: x.start, end: x.end, level: k.level, title: k.title, teacherId: tk.teacherId || "", teacher: tk.teacher || "", locationId: k.locationId || "", roomId: k.roomId || "", room: k.room || "", studentIds: k.studentIds || [], absentIds: [] };
+    const tk = tAt(k, x.date), base = { id: sessId(k, x.date, x.start), courseId: k.id, date: x.date, start: x.start, end: x.end, level: k.level, title: k.title, teacherId: tk.teacherId || "", teacher: tk.teacher || "", locationId: k.locationId || "", roomId: k.roomId || "", room: k.room || "", studentIds: k.studentIds || [], absentIds: [], noAtt: !!k.noAtt };
     const o = ov.get(base.id); return o ? { ...base, ...o, studentIds: o.studentIds || base.studentIds, _base: base } : { ...base, _base: base };
   });
 }
@@ -1413,7 +1413,7 @@ function courseView(k) {
       ${sids.length ? `<div class="tablewrap"><table><thead><tr><th>${L("学生")}</th><th>${L("到")}</th><th>${L("迟到")}</th><th>${L("缺课")}</th><th>${L("请假")}</th><th>${L("出勤")}</th><th>${L("作业平均")}</th></tr></thead><tbody>${stRows}</tbody></table></div><p class="muted" style="margin:0;font-size:12.5px">${L("出勤 = 到 + 迟到，除以已登记的课。点学生名字看学生资料。")}</p>` : `<p class="muted">${L("这个班还没有学生")}</p>`}
     </details>
     <div class="panel kfold"><div class="row" style="gap:6px 10px"><h3 style="margin:0">${L("每节课的考勤")}</h3><span class="muted" style="font-size:12.5px">${esc(L("已上 {0} 节，选一个日期查看", past.length))}</span></div>
-      ${shown.length ? `<select id="ksday" style="margin-top:8px;max-width:100%"><option value="">${L("选择日期…")}</option>${shown.map(c => `<option value="${esc(c.id)}">${esc(`${c.date} ${wd(c.date)} ${c.start || ""}–${c.end || ""} · ${attMissing(c).length ? L("考勤未完成") : L("考勤完成")}`)}</option>`).join("")}</select><div id="ksone" style="margin-top:8px"></div>` : `<p class="muted">${L("还没有上过课")}</p>`}
+      ${shown.length ? `<select id="ksday" style="margin-top:8px;max-width:100%"><option value="">${L("选择日期…")}</option>${shown.map(c => `<option value="${esc(c.id)}">${esc(`${c.date} ${wd(c.date)} ${c.start || ""}–${c.end || ""} · ${c.noAtt ? L("不用考勤") : attMissing(c).length ? L("考勤未完成") : L("考勤完成")}`)}</option>`).join("")}</select><div id="ksone" style="margin-top:8px"></div>` : `<p class="muted">${L("还没有上过课")}</p>`}
     </div>
   </div>`);
   el.addEventListener("click", e => {
@@ -1443,6 +1443,7 @@ function courseForm(k, preset) {
       <label class="f">${L("教室")}${roomPicker(k)}</label>
       <label class="f">${L("开始日期")}<input name="start" data-dp readonly autocomplete="off" placeholder="YYYY-MM-DD" value="${esc(k.start)}" required></label>
       <label class="f">${L("结束日期")}<input name="end" data-dp readonly autocomplete="off" placeholder="YYYY-MM-DD" value="${esc(k.end)}"></label>
+      <label class="f" style="grid-column:1/-1"><span style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--fg)"><input type="checkbox" name="needAtt" style="width:auto" ${k.noAtt ? "" : "checked"}> ${L("这个班要考勤")}</span><span class="muted" style="font-size:12.5px">${L("不勾的话，老师不用给这个班拍照点到，也不会提醒没填考勤。")}</span></label>
     </div>
     <div class="panel"><h3>${L("每周上课")}</h3><div style="display:grid;gap:6px">${WDAYS.map((d, i) => { const x = sl(d); return `<div class="row" style="gap:8px"><label style="display:flex;align-items:center;gap:6px;min-width:80px;margin:0"><input type="checkbox" name="wd" style="width:auto" value="${d}" ${x ? "checked" : ""}> ${L(WDN[i])}</label><input type="time" name="ws${d}" value="${esc(x?.start || "")}" style="width:auto"> – <input type="time" name="we${d}" value="${esc(x?.end || "")}" style="width:auto">${sl(d, 1) ? "" : `<button type="button" class="btn small" data-addx>${L("＋ 第二段")}</button>`}<span class="row x2" style="gap:8px" ${sl(d, 1) ? "" : "hidden"}><span class="muted" style="font-size:12.5px">${L("第二段")}</span><input type="time" name="xs${d}" value="${esc(sl(d, 1)?.start || "")}" style="width:auto" aria-label="${L("第二段")}"> – <input type="time" name="xe${d}" value="${esc(sl(d, 1)?.end || "")}" style="width:auto" aria-label="${L("第二段")}"></span></div>`; }).join("")}</div></div>
     <div class="panel" id="kcal"></div>
@@ -1487,7 +1488,7 @@ function courseForm(k, preset) {
     if (!fd.get("start")) return toast(L("请填写开始日期"));
     if (fd.get("end") && fd.get("end") < fd.get("start")) return toast(L("结束日期不能早于开始日期"));
     if (!pick.ok()) return;
-    const d = { ...k, level: levelVal(fd, "level"), title: fd.get("title").trim(), teacherId: isTch() ? myTid() : fd.get("teacherId"), teacher: fd.get("teacher").trim(), locationId: fd.get("locationId"), ...roomVal(fd, k), start: fd.get("start"), end: fd.get("end"), slots, studentIds: pick.ids(), note: fd.get("note").trim(), hours: Number(fd.get("hours")) || null, skip: dr.skip.filter(x => x >= fd.get("start")), extra: dr.extra.filter(x => x.date >= fd.get("start")) };
+    const d = { ...k, level: levelVal(fd, "level"), title: fd.get("title").trim(), teacherId: isTch() ? myTid() : fd.get("teacherId"), teacher: fd.get("teacher").trim(), locationId: fd.get("locationId"), ...roomVal(fd, k), start: fd.get("start"), end: fd.get("end"), slots, studentIds: pick.ids(), note: fd.get("note").trim(), hours: Number(fd.get("hours")) || null, noAtt: !fd.get("needAtt"), skip: dr.skip.filter(x => x >= fd.get("start")), extra: dr.extra.filter(x => x.date >= fd.get("start")) };
     const from = fd.get("tfrom") || today();
     if (tChanged() && from > (k.start || "")) {
       // the earlier teacher keeps the sessions before that day; a later entry never reaches past the new change
@@ -3794,6 +3795,7 @@ function classForm(c, presetStudent) {
       <label class="f">${L("老师")}<select name="teacherId">${isTch() ? "" : `<option value="">${c.teacher && !c.teacherId ? esc(c.teacher) : L("选择老师")}</option>`}${S.teachers.filter(t => isTch() ? t.id === myTid() : t.active !== false || t.id === curT).sort(byName).map(t => `<option value="${t.id}" ${curT === t.id ? "selected" : ""}>${esc(tboth(t))}</option>`).join("")}</select></label>
       <label class="f">${L("教室")}${roomPicker(c)}</label>
       ${isNew || isTch() ? "" : subBoxHtml(c, kc)}
+      ${kc ? "" : `<label class="f" style="grid-column:1/-1"><span style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--fg)"><input type="checkbox" name="needAtt" style="width:auto" ${c.noAtt ? "" : "checked"}> ${L("这个班要考勤")}</span><span class="muted" style="font-size:12.5px">${L("不勾的话，老师不用给这个班拍照点到，也不会提醒没填考勤。")}</span></label>`}
       ${isNew ? `<label class="f">${L("每周重复")}<select name="repeat"><option value="1">${L("只这一次")}</option><option value="auto">${L("按总课时排满")}</option>${[4, 8, 12, 16, 20, 24, 32, 40].map(n => `<option value="${n}">${L("{0} 节课", n)}</option>`).join("")}</select></label>` : ""}
     </div>
     ${isNew ? `<div class="row" id="cwd" hidden style="gap:6px 14px"><span class="muted" style="font-size:12.5px">${L("每周哪几天上课")}</span>${WDAYS.map((d, i) => `<label style="display:flex;align-items:center;gap:5px;font-size:13.5px"><input type="checkbox" name="rwd" value="${d}" style="width:auto"> ${L(WDN[i])}</label>`).join("")}</div><div class="panel" id="ccal" hidden></div>` : ""}
@@ -3834,7 +3836,7 @@ function classForm(c, presetStudent) {
     const subT = fd.get("subT") || "", scope = fd.get("subScope") || "one", until = fd.get("subUntil") || "";
     if (subT && scope === "until" && !until) return toast(L("请选代课到哪天"));
     const btn = f.querySelector(".btn.primary"); btn.disabled = true;
-    const base = { start: fd.get("start"), end: fd.get("end"), level: levelVal(fd, "level"), title: fd.get("title").trim(), teacherId: isTch() ? myTid() : fd.get("teacherId"), locationId: fd.get("locationId"), ...roomVal(fd, c), note: fd.get("note").trim(), studentIds: pick.ids() };
+    const base = { start: fd.get("start"), end: fd.get("end"), level: levelVal(fd, "level"), title: fd.get("title").trim(), teacherId: isTch() ? myTid() : fd.get("teacherId"), locationId: fd.get("locationId"), ...roomVal(fd, c), note: fd.get("note").trim(), studentIds: pick.ids(), ...(kc ? {} : { noAtt: !fd.get("needAtt") }) };
     const made = { createdBy: S.acct.id, createdAt: new Date().toISOString() };
     try {
       if (isNew) {
@@ -4141,6 +4143,7 @@ const sessOf = tid => CL().filter(c => !tid || c.teacherId === tid);
 const tLabel = c => { const n = tname(c); return n ? (/老师$/.test(n) && S.lang === "zh" ? n : L("{0}老师", n)) : L("未定老师"); };
 // what is still missing from a session's attendance
 function attMissing(c) {
+  if (c.noAtt) return [];
   const a = attOf(c.id) || {}, out = [];
   if (!a.photoStart) out.push("上课照片");
   if (!a.photoEnd) out.push("下课照片");
@@ -4151,6 +4154,7 @@ function attMissing(c) {
 }
 function attPill(c) {
   if (c.date > today()) return "";
+  if (c.noAtt) return `<span class="pill">${L("不用考勤")}</span>`;
   const miss = attMissing(c);
   if (!miss.length) return `<span class="pill st-上课中">✓ ${L("考勤完成")}</span>`;
   return `<span class="pill ${attOf(c.id) ? "st-待排课" : "attmiss"}">${esc(L("缺：{0}", miss.map(x => L(x)).join(S.lang === "es" ? ", " : "、")))}</span>`;
@@ -4534,6 +4538,7 @@ Object.assign(ES, {"{0} 课时": "{0} horas de clase"});
 Object.assign(ES, {"班级详情": "Detalle del grupo", "这个时间对应好几个班，点一个查看：": "Este horario corresponde a varios grupos; toca uno para verlo:", "班级总表里还没有这个班。建成班级以后，可以记人数、备注，也能在班级总表里看到。": "Este grupo aún no está en la lista de grupos. Al crearlo podrás anotar cantidad y notas, y aparecerá en la lista.", "＋ 建成班级": "＋ Crear grupo", "要改上课时间，请改老师的每周时间。": "Para cambiar el horario, edita el horario semanal del profesor."});
 Object.assign(ES, {"只考 HSK": "Solo HSK", "只来考 HSK，不在学校上课：转到 HSK 考生名单，不再提醒": "Solo vino a rendir el HSK, no estudia aquí: pasa a la lista de candidatos HSK y deja de aparecer", "已转到 HSK 考生：{0}": "Pasó a candidatos HSK: {0}"});
 Object.assign(ES, {"老师请假：勾选要代的课（可以多选，思源的课和其他教学点的课都在这里），选代课老师": "Profesor ausente: marca las clases a reemplazar (varias a la vez, de Siyuan y de otros sitios) y elige el reemplazo", "已结课": "Grupo terminado", "这个班上完了：结课，或者继续上下一级": "El grupo terminó: cerrarlo o seguir al siguiente nivel", "结课：从课表里去掉": "Cerrar: quitar del horario", "去掉 {0} 每周时间里的“{1}”": "Quita «{1}» del horario semanal de {0}", "继续上下一级，新名称": "Seguir al siguiente nivel, nombre nuevo", "改成下一级": "Pasar al siguiente nivel", "下一级沿用同样的时间；时间不一样的话，改完再到老师的每周时间里调。": "El siguiente nivel mantiene el horario; si cambia, ajústalo luego en el horario semanal del profesor.", "全选": "Todas", "全不选": "Ninguna", "只选这个班": "Solo este grupo", "由 {0} 代课": "Reemplazo: {0}", "选“原老师”再保存，就是取消代课。": "Elige al profesor original y guarda para quitar el reemplazo.", "保存代课": "Guardar reemplazo", "这段时间没有课": "No hay clases en estas fechas", "请先勾选要代的课": "Marca primero las clases", "已取消 {0} 节代课": "{0} reemplazos quitados", "结课": "Cerrar grupo", "从 {0} 的每周时间里去掉“{1}”？班级总表里的班不会删除，以前的课时记录也会保留。": "¿Quitar «{1}» del horario semanal de {0}? El grupo en la lista no se borra y las horas pasadas se conservan.", "已结课：{0}": "Cerrado: {0}", "请填写新名称": "Escribe el nombre nuevo", "已改成：{0}": "Cambiado a: {0}", "每 45 分钟算 1 课时（40 分钟 = 0.9）。包括思源的课和合作学校、其他课程的时间；只算到今天，节假日和取消的课不算；代课算在实际上课的老师名下。": "Cada 45 minutos es 1 hora de clase (40 min = 0,9). Incluye clases de Siyuan, colegios aliados y otros cursos; solo hasta hoy, sin feriados ni clases canceladas; los reemplazos cuentan para quien dio la clase."});
+Object.assign(ES, {"不用考勤": "Sin asistencia", "这个班要考勤": "Este grupo lleva asistencia", "不勾的话，老师不用给这个班拍照点到，也不会提醒没填考勤。": "Si no se marca, el profesor no toma fotos ni pasa lista en este grupo, y no habrá avisos de asistencia pendiente."});
 Object.assign(ES, {"外聘": "Externo", "外聘老师": "Profesores externos"});
 Object.assign(ES, {"结束日期不能早于开始日期": "La fecha de fin no puede ser anterior a la de inicio"});
 Object.assign(ES, {"网络较慢，付款记录还在同步，现在看到的可能不完整。": "La conexión va lenta: los pagos aún se están sincronizando y la lista puede estar incompleta.", "首页": "Inicio", "教学安排": "Clases", "老师管理": "Profesores", "财务": "Finanzas", "行政": "Administración"});
@@ -4571,7 +4576,7 @@ function viewTeachers() {
 
 function teacherPage(x) {
   const t = today(), ws = mondayOf(t), on = ownOn(x.id), wk = CL().filter(c => c.teacherId === x.id && c.date >= ws && c.date <= addDays(ws, 6)).sort(byStart);
-  const past = sessOf(x.id).filter(c => c.date <= t && c.date >= addDays(t, -30)), done = past.filter(c => !attMissing(c).length).length;
+  const past = sessOf(x.id).filter(c => c.date <= t && c.date >= addDays(t, -30) && !c.noAtt), done = past.filter(c => !attMissing(c).length).length;
   const a = tAcct(x), wa = (x.phone || "").replace(/\D/g, ""), locs = (x.locationIds || []).map(locOf).filter(Boolean).map(lname);
   const el = openSheet(`<div style="display:grid;gap:14px">
     <div class="row" style="align-items:center">${tAvatar(x, true)}<div><h2 style="margin:0">${esc(x.name || "")} <span class="muted" style="font-weight:400">${esc(x.nameEs || "")}</span></h2><div class="row" style="gap:4px;margin-top:4px">${tStPill(x)}${x.kind ? `<span class="pill st-试听">${esc(L(x.kind))}</span>` : ""}</div></div>
@@ -4670,7 +4675,7 @@ const subOf = c => { const o = c._base ? c._base.teacherId : c.subFor; return o 
 const addMon = (m, n) => { const d = new Date(+m.slice(0, 4), +m.slice(5) - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 // what a teacher taught in a month (or any date range), up to today: sessions, hours, covers for others, own sessions others covered
 function tStats(id, from, to) {
-  const t = today(), end = to < t ? to : t, mine = lessonsOf(id, from, end), own = mine.filter(c => c.c);
+  const t = today(), end = to < t ? to : t, mine = lessonsOf(id, from, end), own = mine.filter(c => c.c && !c.c.noAtt);
   return { n: mine.length, h: mine.reduce((s, c) => s + slotHrs(c.start, c.end), 0), ks: mine.reduce((s, c) => s + ksOf(c), 0), sub: mine.filter(c => c.cover).length, nS: own.length, att: own.filter(c => !attMissing(c.c).length).length,
     lost: CL().filter(c => c.date >= from && c.date <= end && subOf(c) === id).length + slotOcc().filter(o => o.date >= from && o.date <= end && o.cover === id).length };
 }
