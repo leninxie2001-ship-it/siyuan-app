@@ -64,7 +64,7 @@ input.auto, select.auto, textarea.auto { background: var(--accent-soft); border-
 input.unsure, select.unsure, textarea.unsure { background: var(--amber-soft); border-color: var(--amber) }
 .ochint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--amber); font-size: 12px }
 .ochint b { color: var(--fg); font-weight: 500 }
-main { padding-top: 20px; display: grid; gap: 20px }
+main { padding-top: 20px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px }
 h2 { font-family: var(--f-display); font-size: 18px; margin: 0; text-wrap: balance }
 h3 { font-size: 13px; margin: 0; color: var(--muted); letter-spacing: .06em; font-weight: 700 }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px }
@@ -167,8 +167,8 @@ dl.kv dd { white-space: pre-line }
 .vline code { flex: 1; min-width: 0; overflow-wrap: anywhere; background: var(--sunken); padding: 3px 7px; border-radius: 6px; font-size: 13.5px }
 .vline a { overflow-wrap: anywhere }
 @media (max-width: 520px) { .vgrid { grid-template-columns: 1fr } }
-.payseg { display: flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; width: max-content; max-width: 100% }
-.payseg button { border: 0; background: var(--surface); color: var(--fg); padding: 7px 14px; font: inherit; font-size: 13.5px; cursor: pointer }
+.payseg { display: flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; overflow-x: auto; width: max-content; max-width: 100%; min-width: 0; scrollbar-width: none }
+.payseg button { flex: none; white-space: nowrap; border: 0; background: var(--surface); color: var(--fg); padding: 7px 14px; font: inherit; font-size: 13.5px; cursor: pointer }
 .payseg button + button { border-left: 1px solid var(--line) }
 .payseg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg) }
 #payform .stuonly[hidden], #payform .loconly[hidden], #payform .famrow[hidden] { display: none }
@@ -4397,6 +4397,7 @@ function tPortalClick(t) {
   if (t.closest("[data-rqcancel],[data-rqsub],[data-rqno],[data-rqmove]")) { rqClick(t); return true; }
   const ts2 = t.closest("[data-tchst]"); if (ts2) { S.tchSt = ts2.dataset.tchst; render(); return true; }
   const tm = t.closest("[data-tchmon]"); if (tm) { if ((S.tchPer || "week") === "week") S.tchWk = addDays(S.tchWk || mondayOf(today()), 7 * +tm.dataset.tchmon); else S.tchMon = addMon(S.tchMon || today().slice(0, 7), +tm.dataset.tchmon); render(); return true; }
+  const kj = t.closest("[data-ksjump]"); if (kj) { const d = document.getElementById("ks-" + kj.dataset.ksjump); if (d) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" }); } return true; }
   const tpr = t.closest("[data-tchper]"); if (tpr) { S.tchPer = tpr.dataset.tchper; render(); return true; }
   const tp = t.closest("[data-tpage]"); if (tp) { const x = tch(tp.dataset.tpage); if (x) teacherPage(x); return true; }
   if (t.closest("[data-tacctnew]")) { tAcctBulk(); return true; }
@@ -4408,6 +4409,7 @@ Object.assign(ES, {"华裔网课": "Chino heredado en línea", "华裔网课学�
 Object.assign(ES, {"我的教学": "Mi docencia", "我的考勤": "Mi asistencia", "不上课（不用选）": "No da clases (dejar vacío)", "这个人自己也上课的话，选上他是哪位老师：登录后会多一个“我的教学”，里面有他自己的课表、考勤、班级和学生。": "Si esta persona también da clases, elige qué profesor es: al entrar verá «Mi docencia» con su horario, asistencia, grupos y estudiantes."});
 Object.assign(ES, {"课时": "Horas de clase (45 min)", "按周": "Por semana", "按月": "Por mes", "上周": "Semana anterior", "下周": "Semana siguiente", "合计 {0} 节 · {1} 课时 · {2} 小时": "Total {0} clases · {1} horas de clase · {2} h", "这周还没有上过课": "Aún no hay clases esta semana", "只算到今天、没取消的课。每 45 分钟算 1 课时。代课算在实际上课的老师名下。点老师可以看每周上了哪些课。": "Solo clases hasta hoy y no canceladas. Cada 45 minutos cuentan como 1 hora de clase. Los reemplazos cuentan para quien dio la clase. Toca un profesor para ver sus clases por semana.", "每周课时": "Horas de clase por semana", "{0} 节 · {1} 课时": "{0} clases · {1} horas de clase", "本周（到今天）": "Esta semana (hasta hoy)", "时间": "Hora", "替 {0} 代课": "Reemplazo de {0}", "这周没有课": "Sin clases esta semana", "代课中": "Con reemplazo", "{0} 替 {1} 上这节课": "{0} reemplaza a {1} en esta clase", "取消代课": "Quitar reemplazo", "这节课改回 {0} 上？": "¿Volver a asignar esta clase a {0}?", "已改回原老师": "Devuelta al profesor original", "老师休假或上不了：选代课老师，课时算在代课老师名下": "Si el profesor está de licencia o no puede: elige un reemplazo; las horas cuentan para el reemplazo", "代课老师": "Profesor de reemplazo", "不代课（原老师上）": "Sin reemplazo (profesor original)", "代哪些课": "Qué clases", "只这一节": "Solo esta clase", "从这节到某一天": "Desde esta hasta una fecha", "这节和以后所有的课": "Esta y todas las siguientes", "代到哪天（包括这天）": "Hasta qué día (inclusive)", "请选代课到哪天": "Elige hasta qué día es el reemplazo", "已安排代课：这节和后面 {0} 节": "Reemplazo programado: esta clase y {0} más", "已安排代课": "Reemplazo programado"});
 Object.assign(ES, {"课时统计": "Horas de clase", "{0} 位老师 · {1} 节 · {2} 课时": "{0} profesores · {1} clases · {2} horas de clase", "每 45 分钟算 1 课时（40 分钟 = 0.9）。只算到今天、没取消的课；代课算在实际上课的老师名下。": "Cada 45 minutos es 1 hora de clase (40 min = 0,9). Solo clases hasta hoy y no canceladas; los reemplazos cuentan para quien dio la clase.", "{0} 小时": "{0} h", "其中代课 {0} 节": "{0} como reemplazo"});
+Object.assign(ES, {"{0} 课时": "{0} horas de clase"});
 Object.assign(ES, {"外聘": "Externo", "外聘老师": "Profesores externos"});
 Object.assign(ES, {"结束日期不能早于开始日期": "La fecha de fin no puede ser anterior a la de inicio"});
 Object.assign(ES, {"网络较慢，付款记录还在同步，现在看到的可能不完整。": "La conexión va lenta: los pagos aún se están sincronizando y la lista puede estar incompleta.", "首页": "Inicio", "教学安排": "Clases", "老师管理": "Profesores", "财务": "Finanzas", "行政": "Administración"});
@@ -4422,6 +4424,7 @@ const ownOn = id => groupsOf(id).filter(g => g.on && !g.sess.every(c => subOf(c)
 const tAcct = x => S.accounts.find(a => a.role === "teacher" && a.teacherId === x.id) || S.accounts.find(a => a.teacherId === x.id);
 const tAvatar = (x, big) => x.photo ? `<img class="av${big ? " big" : ""}" src="${blobUrl(x.photo)}" alt="" loading="lazy">` : `<span class="av${big ? " big" : ""}" aria-hidden="true" style="${tcolor(x.id) ? `background:${tcolor(x.id)};color:#fff` : ""}">${esc((x.name || x.nameEs || "?").slice(0, 1))}</span>`;
 const tWeekHrs = (id, ws) => CL().filter(c => c.teacherId === id && c.date >= ws && c.date <= addDays(ws, 6)).reduce((h, c) => h + slotHrs(c.start, c.end), 0);
+const tWeekKs = (id, ws) => CL().filter(c => c.teacherId === id && c.date >= ws && c.date <= addDays(ws, 6)).reduce((h, c) => h + ksOf(c), 0);
 // usernames come from the Spanish name: "María José" -> maria.jose; pinyin stands in when there is none
 const unameOf = x => { const b = (x.nameEs || x.pinyin || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "").slice(0, 28); return b.length >= 2 ? b : ""; };
 const acctPwTxt = a => a.mustChangePw ? `<span class="pill st-待排课">${esc(L("初始密码 {0}，还没改", T_PW0))}</span>` : `<span class="pill st-上课中">${L("已改成自己的密码")}</span>`;
@@ -4436,7 +4439,7 @@ function viewTeachers() {
     ${list.length ? `<div class="tgrid">${list.map(x => { const on = ownOn(x.id).length, h = tWeekHrs(x.id, ws); return `<div class="tcard" data-tpage="${x.id}" tabindex="0">
       ${tAvatar(x, true)}<div class="tcb"><div><b>${esc(x.name || "")}</b> <span class="muted">${esc(x.nameEs || "")}</span></div>
       <div class="row" style="gap:4px">${tStPill(x)}${x.kind ? `<span class="pill st-试听">${esc(L(x.kind))}</span>` : ""}</div>
-      <div class="muted" style="font-size:12.5px">${esc(L("{0} 个班在上", on))} · ${esc(L("本周 {0} 小时", fmtH(h)))}</div>
+      <div class="muted" style="font-size:12.5px">${esc(L("{0} 个班在上", on))} · ${esc(L("本周 {0} 小时", fmtH(h)))} · ${esc(L("{0} 课时", fmtKs(tWeekKs(x.id, ws))))}</div>
       ${x.phone ? `<div class="muted" style="font-size:12.5px">${esc(x.phone)}</div>` : ""}</div></div>`; }).join("")}</div>` : `<div class="empty">${L("这里还没有老师")}</div>`}
   </section>
   ${tchStatsPanel()}`;
@@ -4578,9 +4581,10 @@ function viewKs() {
     <div class="row"><h2>${L("课时统计")}</h2><span class="payseg" role="group"><button type="button" data-tchper="week" aria-pressed="${wk}">${L("按周")}</button><button type="button" data-tchper="month" aria-pressed="${!wk}">${L("按月")}</button></span>
       <div class="row" style="gap:4px"><button type="button" class="btn small" data-tchmon="-1" aria-label="${L(wk ? "上周" : "上个月")}">‹</button><b style="min-width:7.5em;text-align:center">${esc(wk ? `${a.slice(5)} – ${b.slice(5)}` : monthLabel(m))}</b><button type="button" class="btn small" data-tchmon="1" aria-label="${L(wk ? "下周" : "下个月")}" ${cur ? "disabled" : ""}>›</button></div>
       <span class="muted">${esc(L("{0} 位老师 · {1} 节 · {2} 课时", rows.length, tot.n, fmtKs(tot.ks)))}</span></div>
+    ${rows.length > 1 ? `<div class="row" style="gap:6px">${rows.map(r => `<button type="button" class="btn small" data-ksjump="${esc(r.x.id)}">${esc(r.x.name || r.x.nameEs || "")} <b>${fmtKs(r.ks)}</b></button>`).join("")}</div>` : ""}
     <p class="muted" style="margin:0;font-size:12.5px">${L("每 45 分钟算 1 课时（40 分钟 = 0.9）。只算到今天、没取消的课；代课算在实际上课的老师名下。")}${S.since && a < S.since ? " " + esc(L("系统只读最近 200 天的课，{0} 之前的不全。", S.since)) : ""}</p>
   </section>
-  ${rows.length ? rows.map(({ x, cs, ks, h }) => { const sub = cs.filter(c => subOf(c)).length; return `<details class="gsec top" open><summary>${tdot(x.id)}<b>${esc(x.name || "")}</b><span class="muted">${esc(x.nameEs || "")}</span><span class="gcnt">${esc(L("{0} 节 · {1} 课时", cs.length, fmtKs(ks)))}</span><span class="muted" style="font-size:12.5px">${esc(L("{0} 小时", fmtH(h)))}${sub ? " · " + esc(L("其中代课 {0} 节", sub)) : ""}</span></summary>
+  ${rows.length ? rows.map(({ x, cs, ks, h }) => { const sub = cs.filter(c => subOf(c)).length; return `<details class="gsec top" open id="ks-${esc(x.id)}"><summary>${tdot(x.id)}<b>${esc(x.name || "")}</b><span class="muted">${esc(x.nameEs || "")}</span><span class="gcnt">${esc(L("{0} 节 · {1} 课时", cs.length, fmtKs(ks)))}</span><span class="muted" style="font-size:12.5px">${esc(L("{0} 小时", fmtH(h)))}${sub ? " · " + esc(L("其中代课 {0} 节", sub)) : ""}</span></summary>
     <div class="gbody"><div class="tablewrap"><table class="gt"><thead><tr><th>${L("日期")}</th><th>${L("时间")}</th><th>${L("班级")}</th><th>${L("课时")}</th><th></th></tr></thead><tbody>${cs.map(c => `<tr class="click" data-cls="${esc(c.id)}"><td class="nm">${esc(wd(c.date))} ${esc(c.date.slice(5))}</td><td class="nm">${esc(c.start || "")}–${esc(c.end || "")}</td><td class="nm">${esc(cname(c) || L("课程"))}</td><td class="nm"><b>${fmtKs(ksOf(c))}</b></td><td class="nm">${subOf(c) ? `<span class="pill st-待排课">${esc(L("替 {0} 代课", tdisp(tch(subOf(c))) || "?"))}</span>` : ""}</td></tr>`).join("")}</tbody></table></div></div></details>`; }).join("") : `<div class="empty">${L(wk ? "这周还没有上过课" : "这个月还没有上过课")}</div>`}`;
 }
 // week by week: how many 课时 and exactly which sessions (newest week first, open by default)
@@ -4964,7 +4968,7 @@ render();
     () => { S.ready.a = true; if (S.acct) toast(L("数据连接中断，请刷新页面")); else S.acctFail = true; render(); });
   // on a slow connection Firestore first answers from what it already has in memory (often only the latest records); that is marked as partial until the server has answered every part
   const subMany = (qs, key, field) => { const parts = qs.map(() => null), cached = qs.map(() => true); S.partial = S.partial || {}; return qs.map((q, i) => q.onSnapshot({ includeMetadataChanges: true }, snap => { parts[i] = snap.docs.map(d => ({ id: d.id, ...d.data() })); cached[i] = snap.metadata.fromCache; if (parts.every(Boolean)) { S[field] = parts.flat(); S.partial[field] = cached.some(Boolean); S.ready[key] = true; render(); openFromHash(); } }, () => { S.ready[key] = true; toast(L("数据连接中断，请刷新页面")); render(); })); };
-  sub(db.collection("students").limit(1000), "s", "students");
+  sub(db.collection("students").limit(3000), "s", "students");
   sub(db.collection("teachers").limit(500), "t", "teachers");
   sub(db.collection("locations").limit(200), "l", "locations");
   sub(db.collection("classes").where("date", ">=", since).orderBy("date", "asc").limit(1000), "c", "classes");
@@ -4991,7 +4995,7 @@ render();
   // payments outgrow one 1000-doc query, so read them in half-year windows and merge
   const cuts = []; for (let y = 2025; y <= new Date().getFullYear() + 1; y++) cuts.push(`${y}-01-01`, `${y}-07-01`);
   const pq = db.collection("payments");
-  S.paySub = () => subMany([pq.where("date", "<", cuts[0]), ...cuts.map((c, i) => i + 1 < cuts.length ? pq.where("date", ">=", c).where("date", "<", cuts[i + 1]) : pq.where("date", ">=", c))].map(q => q.limit(1000)), "p", "payments");
+  S.paySub = () => subMany([pq.where("date", "<", cuts[0]), ...cuts.map((c, i) => i + 1 < cuts.length ? pq.where("date", ">=", c).where("date", "<", cuts[i + 1]) : pq.where("date", ">=", c))].map(q => q.limit(2000)), "p", "payments");
   payGate();
   subMany(["exam", "hsk"].map(k => db.collection("scores").where("kind", "==", k).limit(1000)), "x", "scores");
   sub(db.collection("groups").limit(1000), "g", "groups");
