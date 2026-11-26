@@ -369,6 +369,7 @@ table.tt td.clash { background: var(--seal-soft) }
 .ts-siyuan { background: var(--accent-soft); color: var(--accent) }
 .ts-partner { background: var(--amber-soft); color: var(--amber) }
 .ts-other { background: var(--blue-soft); color: var(--blue) }
+.ts-covered > b, .ts-covered > small:not(.tscv) { text-decoration: line-through; opacity: .6 } .ts .tscv { font-weight: 600; color: var(--seal, #b3261e) }
 details.gsec { border: 1px solid var(--line); border-radius: 10px; background: var(--surface) }
 details.gsec + details.gsec { margin-top: 10px }
 details.gsec > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px 14px; font-size: 15px }
@@ -480,7 +481,7 @@ const PAUSE_DAYS = 90;
 const LEVELS = [...Array.from({ length: 18 }, (_, i) => `Nivel ${i + 1}`), ...Array.from({ length: 6 }, (_, i) => [`HSK ${i + 1}`, `HSK ${i + 1} (individual)`]).flat(), "Curso de niños", "Curso de niños nativos", "Clases particulares"];
 // Firebase build: fb.js sets window.__FB (login, storage URLs, account functions); the claude.ai build leaves it unset
 const FB = window.__FB || null;
-const S = { db: null, assets: null, downloads: null, students: [], payments: [], classes: [], courses: [], rooms: [], holidays: [], tab: "home", q: "", stFilter: "active", weekStart: null, scores: [], groups: [], items: [], loans: [], docs: [], flyer: [], leads: [], families: [], zoom: [], attendance: [], grades: [], zoompw: [], requests: [], itemreqs: [], ready: { iq: false, zp: false, at: false, gr: false, z: false, m: false, e: false, a: false, g: false, i: false, o: false, f: false, x: false, s: false, p: false, c: false, t: false, l: false, k: false, r: false, h: false }, accounts: [], acct: null, okKeys: new Set(), fails: 0, lockUntil: 0, teachers: [], locations: [], loc: "", tchF: "", readOnly: false, lang: "zh" };
+const S = { db: null, assets: null, downloads: null, students: [], payments: [], classes: [], courses: [], rooms: [], holidays: [], tab: "home", q: "", stFilter: "active", weekStart: null, scores: [], groups: [], items: [], loans: [], docs: [], flyer: [], leads: [], families: [], zoom: [], attendance: [], grades: [], zoompw: [], requests: [], itemreqs: [], slotsubs: [], ready: { ss: false, iq: false, zp: false, at: false, gr: false, z: false, m: false, e: false, a: false, g: false, i: false, o: false, f: false, x: false, s: false, p: false, c: false, t: false, l: false, k: false, r: false, h: false }, accounts: [], acct: null, okKeys: new Set(), fails: 0, lockUntil: 0, teachers: [], locations: [], loc: "", tchF: "", readOnly: false, lang: "zh" };
 
 /* ---------- language ---------- */
 const ES = {
@@ -759,6 +760,36 @@ function CL() {
   }
   return _cl = Object.assign(list, { last, next });
 }
+// The hand-kept weekly slots (partner schools, other classes) as dated lessons, so they can be covered by another teacher and counted in 课时 like Siyuan classes.
+// A cover is one doc in slotsubs per date, teacher and time. Days off skip the lesson; an "other" slot inside a Siyuan class that day is that class written by hand.
+const ssKey = (date, tid, s) => `${date}_${tid}_${s.start.replace(":", "")}_${s.end.replace(":", "")}`;
+const ssMap = () => (S._ssm && S._ssm.src === S.slotsubs) ? S._ssm.m : (S._ssm = { src: S.slotsubs, m: new Map(S.slotsubs.map(x => [x.id, x])) }).m;
+let _occ = null;
+function slotOcc() {
+  const cl = CL(); if (_occ && _occ.cl === cl && _occ.ss === S.slotsubs) return _occ.list;
+  const from = S.since || addDays(today(), -200), to = addDays(today(), 120), dates = [], m = ssMap(), byTD = new Map(), list = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) if (!isOff(d)) dates.push([d, parseD(d).getDay()]);
+  for (const c of cl) if (c.teacherId && c.start && c.end) { const k = c.teacherId + "|" + c.date; if (!byTD.has(k)) byTD.set(k, []); byTD.get(k).push(c); }
+  for (const x of S.teachers) for (const sl of tSlots(x)) {
+    if (!sl.start || !sl.end) continue;
+    for (const [date, wd0] of dates) {
+      if (wd0 !== +sl.d % 7) continue;
+      if (sl.kind === "other" && (byTD.get(x.id + "|" + date) || []).some(y => y.start <= sl.start && y.end >= sl.end)) continue;
+      const id = ssKey(date, x.id, sl), cv = m.get(id);
+      list.push({ id, date, tid: x.id, s: sl, start: sl.start, end: sl.end, kind: sl.kind, teacherId: cv?.subId || x.id, cover: cv ? x.id : "" });
+    }
+  }
+  _occ = { cl, ss: S.slotsubs, list };
+  return list;
+}
+// every lesson a teacher actually gave (or will give) in a date range: Siyuan classes and hand-kept slots, with who they covered for
+const slotName = sl => [locOf(sl.locationId) ? lname(locOf(sl.locationId)).split(" / ")[0] : sl.place, sl.grp].filter(Boolean).join(" ") || L(TSK[sl.kind] || "其他课程");
+function lessonsOf(tid, from, to) {
+  const a = CL().filter(c => c.teacherId === tid && c.date >= from && c.date <= to).map(c => ({ date: c.date, start: c.start || "", end: c.end || "", kind: "siyuan", name: cname(c) || L("课程"), cover: subOf(c), open: `data-cls="${esc(c.id)}"`, c }));
+  const b = slotOcc().filter(o => o.teacherId === tid && o.date >= from && o.date <= to).map(o => ({ date: o.date, start: o.start, end: o.end, kind: o.kind, name: slotName(o.s), cover: o.cover, open: `data-tsg="${esc([o.tid, o.s.d, o.start, o.end].join("|"))}"` }));
+  return [...a, ...b].sort((x, y) => x.date.localeCompare(y.date) || x.start.localeCompare(y.start));
+}
+const lessonTable = ls => `<div class="tablewrap"><table class="gt"><thead><tr><th>${L("日期")}</th><th>${L("时间")}</th><th>${L("班级")}</th><th>${L("课时")}</th><th></th></tr></thead><tbody>${ls.map(c => `<tr class="click" ${c.open}><td class="nm">${esc(wd(c.date))} ${esc(c.date.slice(5))}</td><td class="nm">${esc(c.start)}–${esc(c.end)}</td><td class="nm"><span class="ts ts-${c.kind}" style="display:inline-block;padding:1px 8px">${esc(c.name)}</span></td><td class="nm"><b>${fmtKs(ksOf(c))}</b></td><td class="nm">${c.cover ? `<span class="pill st-待排课">${esc(L("替 {0} 代课", tdisp(tch(c.cover)) || "?"))}</span>` : ""}</td></tr>`).join("")}</tbody></table></div>`;
 const kStat = k => { const t = today(); return k.start > t ? "未开始" : k.end && k.end < t ? "已结束" : "进行中"; };
 const kPill = k => { const x = kStat(k); return `<span class="pill ${{ 进行中: "st-上课中", 未开始: "st-待排课", 已结束: "st-不上课了" }[x]}">${L(x)}</span>`; };
 // the weekly slots in the course form: each ticked day, plus its second period when both times are filled
@@ -1541,10 +1572,13 @@ const slotLoc = s => s.locationId || (s.kind === "other" ? (S.locations.find(l =
 function tWeek(x, days, loc = "") {
   const cols = days.map(() => []), clash = [];
   for (const c of CL()) if (c.teacherId === x.id && c.start && c.end && (!loc || c.locationId === loc)) { const i = days.indexOf(c.date); if (i >= 0) cols[i].push({ id: c.id, start: c.start, end: c.end, kind: "siyuan", place: cname(c), online: locOf(c.locationId)?.type === "线上" }); }
-  for (const s of tSlots(x)) { if (loc && slotLoc(s) !== loc) continue; const i = (+s.d + 6) % 7; if (!cols[i].some(y => y.start <= s.start && y.end >= s.end && ((y.kind === "siyuan" && s.kind === "other") || (y.start === s.start && y.end === s.end)))) cols[i].push(s); }
+  const sm = ssMap();
+  for (const s of tSlots(x)) { if (loc && slotLoc(s) !== loc) continue; const i = (+s.d + 6) % 7; if (!cols[i].some(y => y.start <= s.start && y.end >= s.end && ((y.kind === "siyuan" && s.kind === "other") || (y.start === s.start && y.end === s.end)))) { const cv = sm.get(ssKey(days[i], x.id, s)); cols[i].push(cv ? { ...s, coveredBy: cv.subId } : s); } }
+  // partner or other lessons this teacher covers for someone else that week
+  for (const cv of S.slotsubs) { const i = days.indexOf(cv.date); if (cv.subId !== x.id || i < 0) continue; const o = tch(cv.tid), sl = tSlots(o).find(y => y.start === cv.start && y.end === cv.end && String(y.d) === String(cv.d)); if (!sl || (loc && slotLoc(sl) !== loc)) continue; cols[i].push({ ...sl, subFor: cv.tid }); }
   cols.forEach((col, i) => {
     col.sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
-    let end = 0; for (const s of col) { const a = toMin(s.start), b = toMin(s.end); if (a < end) clash[i] = true; end = Math.max(end, b); }
+    let end = 0; for (const s of col) { if (s.coveredBy) continue; const a = toMin(s.start), b = toMin(s.end); if (a < end) clash[i] = true; end = Math.max(end, b); }
   });
   return { cols, clash, any: cols.some(c => c.length) };
 }
@@ -1557,7 +1591,7 @@ function dayList(ix) {
 // The course-details column: one line per school or class, with its days and the grades or groups written for it.
 function tDetails(x, w) {
   const g = new Map(), pn = x.pnotes || {};
-  w.cols.forEach((col, i) => col.forEach(s => { const k = `${s.kind}|${s.place || ""}`; if (!g.has(k)) g.set(k, { kind: s.kind, place: s.place || "", locationId: s.locationId || "", online: s.online, days: [] }); const e = g.get(k); if (!e.days.includes(i)) e.days.push(i); }));
+  w.cols.forEach((col, i) => col.forEach(s => { if (s.subFor) return; const k = `${s.kind}|${s.place || ""}`; if (!g.has(k)) g.set(k, { kind: s.kind, place: s.place || "", locationId: s.locationId || "", online: s.online, days: [] }); const e = g.get(k); if (!e.days.includes(i)) e.days.push(i); }));
   const order = { siyuan: 0, partner: 1, other: 2 };
   // the groups set up in 班级总表 come first, then anything written by hand for that place
   return [...g.values()].sort((a, b) => order[a.kind] - order[b.kind] || a.days[0] - b.days[0]).map(e => ({ ...e, note: e.kind === "siyuan" ? (e.online ? L("线上") : "") : [gText(slotGroups(x.id, e)), pn[e.place]].filter(Boolean).join(" · ") }));
@@ -1574,7 +1608,7 @@ function ttData() {
 const tsLabel = s => [s.place, s.grp].filter(Boolean).join(" ");
 // a Siyuan class opens that day's class details; the rest of the row still opens the teacher's timetable
 // a partner-school or other slot opens that class like a Siyuan class does (its group in 班级总表, or a way to make one)
-const tsChip = (s, tid) => `<div class="ts ts-${s.kind}"${s.id && !isTch() ? ` data-cls="${esc(s.id)}" title="${esc(L("课程详情"))}" style="cursor:pointer"` : !s.id && tid && !isTch() ? ` data-tsg="${esc([tid, s.d, s.start, s.end].join("|"))}" title="${esc(L("班级详情"))}" style="cursor:pointer"` : ""}><b>${tRange(s)}</b>${tsLabel(s) ? `<small>${esc(tsLabel(s))}</small>` : ""}</div>`;
+const tsChip = (s, tid) => `<div class="ts ts-${s.kind}${s.coveredBy ? " ts-covered" : ""}"${s.id && !isTch() ? ` data-cls="${esc(s.id)}" title="${esc(L("课程详情"))}" style="cursor:pointer"` : !s.id && tid && !isTch() ? ` data-tsg="${esc([s.subFor || tid, s.d, s.start, s.end].join("|"))}" title="${esc(L("班级详情"))}" style="cursor:pointer"` : ""}><b>${tRange(s)}</b>${tsLabel(s) ? `<small>${esc(tsLabel(s))}</small>` : ""}${s.coveredBy ? `<small class="tscv">${esc(L("由 {0} 代课", tdisp(tch(s.coveredBy)) || "?"))}</small>` : s.subFor ? `<small class="tscv">${esc(L("替 {0} 代课", tdisp(tch(s.subFor)) || "?"))}</small>` : ""}</div>`;
 const detHtml = r => `${r.det.map(e => `<div class="dl"><span class="ts ts-${e.kind}">${esc(e.place || L(TSK[e.kind] || "其他课程"))}</span><span class="dd">${esc(dayList(e.days))}</span>${e.note ? `<span class="dn">${esc(e.note)}</span>` : ""}</div>`).join("")}${r.x.courseNote ? `<div class="dx">${esc(r.x.courseNote)}</div>` : ""}`;
 const detText = r => [...r.det.map(e => [e.place || L(TSK[e.kind] || "其他课程"), dayList(e.days), e.note].filter(Boolean).join(" · ")), r.x.courseNote].filter(Boolean).join("\n");
 function viewTT() {
@@ -1749,15 +1783,61 @@ function slotView(tid, s) {
     ${stu.length ? `<div class="row" style="gap:6px">${stu.map(y => `<span class="stuchip">${esc(sname(y))}</span>`).join("")}</div>` : ""}
     ${gs.length > 1 ? `<div><p class="muted" style="margin:0 0 6px">${L("这个时间对应好几个班，点一个查看：")}</p><div class="tablewrap"><table class="gt"><thead><tr><th>${L("班级")}</th><th>${L("人数")}</th><th>${L("备注")}</th></tr></thead><tbody>${gs.map(g => `<tr class="click" data-svg="${g.id}"><td class="nm"><b>${esc(g.name)}</b>${g.section ? ` <span class="muted">${esc(g.section)}</span>` : ""}</td><td>${(gCourse(g) ? (gCourse(g).studentIds || []).length : gOnStu(g).length) || (g.size ?? "—")}</td><td class="wrap">${esc(g.note || "")}</td></tr>`).join("")}</tbody></table></div></div>` : ""}
     ${gs.length ? "" : `<div class="banner row" style="margin:0"><span>${L("班级总表里还没有这个班。建成班级以后，可以记人数、备注，也能在班级总表里看到。")}</span><span class="spacer"></span><button type="button" class="btn small primary" data-svnew>${L("＋ 建成班级")}</button></div>`}
+    <details class="panel" id="svsub"><summary><b>${L("代课")}</b> <span class="muted" style="font-size:12.5px">${L("老师请假：勾选要代的课（可以多选，思源的课和其他教学点的课都在这里），选代课老师")}</span></summary><div id="svsubin" style="display:grid;gap:10px;margin-top:10px"></div></details>
+    <details class="panel" id="svend"><summary><b>${L("已结课")}</b> <span class="muted" style="font-size:12.5px">${L("这个班上完了：结课，或者继续上下一级")}</span></summary>
+      <div style="display:grid;gap:10px;margin-top:10px">
+        <div class="row" style="gap:8px"><button type="button" class="btn small danger" data-svclose>${L("结课：从课表里去掉")}</button><span class="muted" style="font-size:12.5px">${esc(L("去掉 {0} 每周时间里的“{1}”", x?.name || "", slotName(s)))}</span></div>
+        <div class="row" style="gap:8px"><label class="f" style="margin:0">${L("继续上下一级，新名称")}<input data-svnext value="${esc(nextName(s.kind === "partner" ? (s.grp || "") : (s.place || "")))}" style="min-width:14em"></label><button type="button" class="btn small primary" data-svgo>${L("改成下一级")}</button></div>
+        <p class="muted" style="margin:0;font-size:12.5px">${L("下一级沿用同样的时间；时间不一样的话，改完再到老师的每周时间里调。")}</p>
+      </div></details>
     <div class="row"><span class="muted" style="font-size:12.5px">${L("要改上课时间，请改老师的每周时间。")}</span><span class="spacer"></span><button type="button" class="btn small" data-svtime>${esc(L("{0} 的每周时间", x?.name || ""))}</button></div>
   </div>`, true);
+  // the slots this class stands for in the teacher's week (every weekday it meets)
+  const same = y => y.kind === s.kind && (s.kind === "partner" ? y.locationId === s.locationId && (y.grp || "") === (s.grp || "") : (y.place || "") === (s.place || "") && (y.grp || "") === (s.grp || ""));
+  const saveSlots = async slots => { const { id, ...rest } = tch(tid); await save("teachers", tid, { ...rest, tslots: slots.sort(bySlot), updatedAt: new Date().toISOString() }); };
+  let subFrom = today(), subTo = addDays(today(), 6);
+  const drawSub = () => {
+    const ls = svLessons(tid, subFrom, subTo).map(l => ({ ...l, same: !!l.o && same(l.o.s) })), others = S.teachers.filter(t => t.id !== tid && tStatus(t) === "在职").sort(byName);
+    $("#svsubin", el).innerHTML = `<div class="grid2"><label class="f">${L("从")}<input type="date" data-svf value="${subFrom}"></label><label class="f">${L("到")}<input type="date" data-svt value="${subTo}"></label></div>
+      <label class="f">${L("代课老师")}<select data-svsubt><option value="">${esc(L("{0}（原老师）", tdisp(x)))}</option>${others.map(t => `<option value="${t.id}">${esc(tboth(t))}</option>`).join("")}</select></label>
+      ${ls.length ? `<div class="row" style="gap:6px"><button type="button" class="btn small" data-svall="1">${L("全选")}</button><button type="button" class="btn small" data-svall="0">${L("全不选")}</button><button type="button" class="btn small" data-svall="same">${L("只选这个班")}</button></div>
+      <div class="tablewrap"><table class="gt"><tbody>${ls.map(l => `<tr><td class="nm"><label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" data-svl="${esc(l.key)}" ${l.same ? "checked" : ""} style="width:auto"> ${esc(wd(l.date))} ${esc(l.date.slice(5))} ${esc(l.start)}–${esc(l.end)}</label></td><td class="nm"><span class="ts ts-${l.kind}" style="display:inline-block;padding:1px 8px">${esc(l.name)}</span></td><td class="nm">${l.by !== tid ? `<span class="pill st-待排课">${esc(L("由 {0} 代课", tdisp(tch(l.by)) || "?"))}</span>` : ""}</td></tr>`).join("")}</tbody></table></div>
+      <div class="row"><span class="muted" style="font-size:12.5px">${L("选“原老师”再保存，就是取消代课。")}</span><span class="spacer"></span><button type="button" class="btn small primary" data-svsave>${L("保存代课")}</button></div>` : `<span class="muted">${L("这段时间没有课")}</span>`}`;
+    el._ls = ls;
+  };
+  $("#svsub", el).addEventListener("toggle", e => { if (e.target.open && !el._ls) drawSub(); });
+  el.addEventListener("change", e => { if (e.target.matches("[data-svf],[data-svt]")) { subFrom = el.querySelector("[data-svf]").value || today(); subTo = el.querySelector("[data-svt]").value || subFrom; if (subTo < subFrom) subTo = subFrom; drawSub(); } });
   el.addEventListener("click", e => {
     if (e.target.closest("[data-close]")) closeSheet();
     if (e.target.closest("[data-sveditg]")) { k ? courseView(k) : groupForm(one); }
     const r = e.target.closest("[data-svg]"); if (r) { const g = S.groups.find(y => y.id === r.dataset.svg), gk = g && gCourse(g); if (gk) courseView(gk); else if (g) groupForm(g); }
     if (e.target.closest("[data-svnew]")) { groupForm({ locationId: s.kind === "partner" ? s.locationId || "" : "", program: s.kind === "partner" ? "" : s.place || "", name: s.grp || "", teacherId: tid }); }
     if (e.target.closest("[data-svtime]")) tsForm(x);
+    const sa = e.target.closest("[data-svall]"); if (sa) el.querySelectorAll("[data-svl]").forEach(c => { const l = el._ls.find(y => y.key === c.dataset.svl); c.checked = sa.dataset.svall === "same" ? !!l?.same : sa.dataset.svall === "1"; });
+    const sv = e.target.closest("[data-svsave]"); if (sv) {
+      const nt = el.querySelector("[data-svsubt]").value || tid, keys = new Set([...el.querySelectorAll("[data-svl]:checked")].map(c => c.dataset.svl));
+      if (!keys.size) return toast(L("请先勾选要代的课"));
+      sv.disabled = true;
+      (async () => { let n = 0; for (const l of el._ls.filter(y => keys.has(y.key))) { if (l.by === nt) continue; await l.set(nt); n++; } toast(n ? (nt === tid ? L("已取消 {0} 节代课", n) : L("已安排 {0} 节代课", n)) : L("没有改动")); closeSheet(); })().catch(err => { sv.disabled = false; toast(L("保存失败：{0}", err?.message || err?.code || err)); });
+    }
+    if (e.target.closest("[data-svclose]")) confirmBox(L("结课"), L("从 {0} 的每周时间里去掉“{1}”？班级总表里的班不会删除，以前的课时记录也会保留。", x.name, slotName(s)), async () => { await saveSlots(tSlots(x).filter(y => !same(y))); closeSheet(); toast(L("已结课：{0}", slotName(s))); });
+    if (e.target.closest("[data-svgo]")) { const nn = el.querySelector("[data-svnext]").value.trim(); if (!nn) return toast(L("请填写新名称"));
+      (async () => { await saveSlots(tSlots(x).map(y => same(y) ? (s.kind === "partner" ? { ...y, grp: nn } : { ...y, place: nn }) : y)); if (one) { const { id, ...rest } = one; await save("groups", one.id, { ...rest, name: nn, updatedAt: new Date().toISOString(), updatedBy: S.acct?.id || "" }); } closeSheet(); toast(L("已改成：{0}", nn)); })().catch(() => { }); }
   });
+}
+// "HSK5 网课" -> "HSK6 网课", "Nivel 2" -> "Nivel 3", "五年级上" -> "五年级下"
+function nextName(n) {
+  if (/上/.test(n) && /年级|册/.test(n)) return n.replace(/上(册)?/, "下$1");
+  const ZH = "一二三四五六七八九"; const m = n.match(/([一二三四五六七八])年级下/); if (m) return n.replace(m[0], ZH[ZH.indexOf(m[1]) + 1] + "年级上");
+  return n.replace(/(\d+)(?!.*\d)/, d => String(+d + 1));
+}
+// a teacher's lessons in a date range for the cover picker, each with how to set who teaches it
+function svLessons(tid, from, to) {
+  const x = tch(tid), sm = ssMap(), out = [];
+  for (const c of CL()) if (c.date >= from && c.date <= to && (c.teacherId === tid || subOf(c) === tid)) out.push({ key: "c:" + c.id, date: c.date, start: c.start || "", end: c.end || "", kind: "siyuan", name: cname(c) || L("课程"), by: c.teacherId, same: false, set: nt => setSessTeacher(c, nt) });
+  for (const o of slotOcc()) if (o.tid === tid && o.date >= from && o.date <= to) out.push({ key: "o:" + o.id, date: o.date, start: o.start, end: o.end, kind: o.kind, name: slotName(o.s), by: o.teacherId, same: false, o,
+    set: nt => nt === tid ? S.db.collection("slotsubs").doc(o.id).delete() : save("slotsubs", o.id, { date: o.date, tid, d: o.s.d, start: o.start, end: o.end, kind: o.kind, place: o.s.place || "", grp: o.s.grp || "", locationId: o.s.locationId || "", subId: nt, by: S.acct.id, at: new Date().toISOString() }) });
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
 }
 function groupForm(g, preset = "") {
   const isNew = !g?.id, sites = S.locations.filter(l => l.type === "教学点").sort(byLoc);
@@ -2526,7 +2606,7 @@ function famForm(f, preset) {
 }
 
 /* ---------- 备份：把数据库里所有资料读一遍，存成一个 Excel（一个集合一张表），每天提醒下载一次 ---------- */
-const BAK_COLS = ["students", "payments", "courses", "classes", "teachers", "locations", "rooms", "holidays", "scores", "groups", "families", "leads", "items", "loans", "itemreqs", "docs", "flyer", "zoom", "attendance", "grades", "accounts"];
+const BAK_COLS = ["students", "payments", "courses", "classes", "teachers", "locations", "rooms", "holidays", "scores", "groups", "families", "leads", "items", "loans", "itemreqs", "slotsubs", "docs", "flyer", "zoom", "attendance", "grades", "accounts"];
 // collections that can pass 1000 documents are read in yearly windows of their date field
 const BAK_DATE = { payments: "date", classes: "date", attendance: "date" };
 const bakDoc = () => S.flyer.find(x => x.id === "backup") || {};
@@ -4453,6 +4533,7 @@ Object.assign(ES, {"课时统计": "Horas de clase", "{0} 位老师 · {1} 节 �
 Object.assign(ES, {"{0} 课时": "{0} horas de clase"});
 Object.assign(ES, {"班级详情": "Detalle del grupo", "这个时间对应好几个班，点一个查看：": "Este horario corresponde a varios grupos; toca uno para verlo:", "班级总表里还没有这个班。建成班级以后，可以记人数、备注，也能在班级总表里看到。": "Este grupo aún no está en la lista de grupos. Al crearlo podrás anotar cantidad y notas, y aparecerá en la lista.", "＋ 建成班级": "＋ Crear grupo", "要改上课时间，请改老师的每周时间。": "Para cambiar el horario, edita el horario semanal del profesor."});
 Object.assign(ES, {"只考 HSK": "Solo HSK", "只来考 HSK，不在学校上课：转到 HSK 考生名单，不再提醒": "Solo vino a rendir el HSK, no estudia aquí: pasa a la lista de candidatos HSK y deja de aparecer", "已转到 HSK 考生：{0}": "Pasó a candidatos HSK: {0}"});
+Object.assign(ES, {"老师请假：勾选要代的课（可以多选，思源的课和其他教学点的课都在这里），选代课老师": "Profesor ausente: marca las clases a reemplazar (varias a la vez, de Siyuan y de otros sitios) y elige el reemplazo", "已结课": "Grupo terminado", "这个班上完了：结课，或者继续上下一级": "El grupo terminó: cerrarlo o seguir al siguiente nivel", "结课：从课表里去掉": "Cerrar: quitar del horario", "去掉 {0} 每周时间里的“{1}”": "Quita «{1}» del horario semanal de {0}", "继续上下一级，新名称": "Seguir al siguiente nivel, nombre nuevo", "改成下一级": "Pasar al siguiente nivel", "下一级沿用同样的时间；时间不一样的话，改完再到老师的每周时间里调。": "El siguiente nivel mantiene el horario; si cambia, ajústalo luego en el horario semanal del profesor.", "全选": "Todas", "全不选": "Ninguna", "只选这个班": "Solo este grupo", "由 {0} 代课": "Reemplazo: {0}", "选“原老师”再保存，就是取消代课。": "Elige al profesor original y guarda para quitar el reemplazo.", "保存代课": "Guardar reemplazo", "这段时间没有课": "No hay clases en estas fechas", "请先勾选要代的课": "Marca primero las clases", "已取消 {0} 节代课": "{0} reemplazos quitados", "结课": "Cerrar grupo", "从 {0} 的每周时间里去掉“{1}”？班级总表里的班不会删除，以前的课时记录也会保留。": "¿Quitar «{1}» del horario semanal de {0}? El grupo en la lista no se borra y las horas pasadas se conservan.", "已结课：{0}": "Cerrado: {0}", "请填写新名称": "Escribe el nombre nuevo", "已改成：{0}": "Cambiado a: {0}", "每 45 分钟算 1 课时（40 分钟 = 0.9）。包括思源的课和合作学校、其他课程的时间；只算到今天，节假日和取消的课不算；代课算在实际上课的老师名下。": "Cada 45 minutos es 1 hora de clase (40 min = 0,9). Incluye clases de Siyuan, colegios aliados y otros cursos; solo hasta hoy, sin feriados ni clases canceladas; los reemplazos cuentan para quien dio la clase."});
 Object.assign(ES, {"外聘": "Externo", "外聘老师": "Profesores externos"});
 Object.assign(ES, {"结束日期不能早于开始日期": "La fecha de fin no puede ser anterior a la de inicio"});
 Object.assign(ES, {"网络较慢，付款记录还在同步，现在看到的可能不完整。": "La conexión va lenta: los pagos aún se están sincronizando y la lista puede estar incompleta.", "首页": "Inicio", "教学安排": "Clases", "老师管理": "Profesores", "财务": "Finanzas", "行政": "Administración"});
@@ -4589,9 +4670,9 @@ const subOf = c => { const o = c._base ? c._base.teacherId : c.subFor; return o 
 const addMon = (m, n) => { const d = new Date(+m.slice(0, 4), +m.slice(5) - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 // what a teacher taught in a month (or any date range), up to today: sessions, hours, covers for others, own sessions others covered
 function tStats(id, from, to) {
-  const t = today(), end = to < t ? to : t, mine = CL().filter(c => c.date >= from && c.date <= end && c.teacherId === id);
-  return { n: mine.length, h: mine.reduce((s, c) => s + slotHrs(c.start, c.end), 0), ks: mine.reduce((s, c) => s + ksOf(c), 0), sub: mine.filter(c => subOf(c)).length, att: mine.filter(c => !attMissing(c).length).length,
-    lost: CL().filter(c => c.date >= from && c.date <= end && subOf(c) === id).length };
+  const t = today(), end = to < t ? to : t, mine = lessonsOf(id, from, end), own = mine.filter(c => c.c);
+  return { n: mine.length, h: mine.reduce((s, c) => s + slotHrs(c.start, c.end), 0), ks: mine.reduce((s, c) => s + ksOf(c), 0), sub: mine.filter(c => c.cover).length, nS: own.length, att: own.filter(c => !attMissing(c.c).length).length,
+    lost: CL().filter(c => c.date >= from && c.date <= end && subOf(c) === id).length + slotOcc().filter(o => o.date >= from && o.date <= end && o.cover === id).length };
 }
 const monRange = m => [m + "-01", addDays(addMon(m, 1) + "-01", -1)];
 const everTaught = (k, id) => k.teacherId === id || (k.tHist || []).some(h => h.teacherId === id);
@@ -4608,7 +4689,7 @@ function tchStatsPanel() {
       <span class="muted">${esc(L("合计 {0} 节 · {1} 课时 · {2} 小时", tot.n, fmtKs(tot.ks), fmtH(tot.h)))}</span></div>
     ${old ? `<p class="muted" style="margin:0;font-size:12.5px">${esc(L("系统只读最近 200 天的课，{0} 之前的不全。", S.since))}</p>` : ""}
     ${rows.length ? `<div class="tablewrap"><table><thead><tr><th>${L("老师")}</th><th>${L("上了几节")}</th><th>${L("课时")}</th><th>${L("小时")}</th><th>${L("其中代课")}</th><th>${L("被别人代")}</th><th>${L("考勤完成")}</th></tr></thead><tbody>
-    ${rows.map(({ x, s }) => `<tr class="click" data-tpage="${x.id}"><td class="nm">${tdot(x.id)}<b>${esc(x.name || "")}</b> <span class="muted">${esc(x.nameEs || "")}</span></td><td><b>${s.n}</b></td><td><b>${fmtKs(s.ks)}</b></td><td>${fmtH(s.h)}</td><td>${s.sub || '<span class="muted">—</span>'}</td><td>${s.lost || '<span class="muted">—</span>'}</td><td>${s.n ? `${s.att} / ${s.n}` : '<span class="muted">—</span>'}</td></tr>`).join("")}
+    ${rows.map(({ x, s }) => `<tr class="click" data-tpage="${x.id}"><td class="nm">${tdot(x.id)}<b>${esc(x.name || "")}</b> <span class="muted">${esc(x.nameEs || "")}</span></td><td><b>${s.n}</b></td><td><b>${fmtKs(s.ks)}</b></td><td>${fmtH(s.h)}</td><td>${s.sub || '<span class="muted">—</span>'}</td><td>${s.lost || '<span class="muted">—</span>'}</td><td>${s.nS ? `${s.att} / ${s.nS}` : '<span class="muted">—</span>'}</td></tr>`).join("")}
     </tbody></table></div>` : `<div class="empty">${L(wk ? "这周还没有上过课" : "这个月还没有上过课")}</div>`}
     <p class="muted" style="margin:0;font-size:12.5px">${L("只算到今天、没取消的课。每 45 分钟算 1 课时。代课算在实际上课的老师名下。点老师可以看每周上了哪些课。")}</p>
   </section>`;
@@ -4618,24 +4699,24 @@ function tchStatsPanel() {
 function viewKs() {
   const wk = (S.tchPer || "week") === "week", m = S.tchMon || today().slice(0, 7), w0 = S.tchWk || mondayOf(today()), t = today();
   const [a, b] = wk ? [w0, addDays(w0, 6)] : monRange(m), cur = wk ? w0 === mondayOf(t) : m === t.slice(0, 7), end = b < t ? b : t;
-  const rows = S.teachers.filter(x => !isExt(x)).sort(byName).map(x => { const cs = CL().filter(c => c.teacherId === x.id && c.date >= a && c.date <= end).sort(byStart); return { x, cs, ks: cs.reduce((s, c) => s + ksOf(c), 0), h: cs.reduce((s, c) => s + slotHrs(c.start, c.end), 0) }; }).filter(r => r.cs.length);
+  const rows = S.teachers.filter(x => !isExt(x)).sort(byName).map(x => { const cs = lessonsOf(x.id, a, end); return { x, cs, ks: cs.reduce((s, c) => s + ksOf(c), 0), h: cs.reduce((s, c) => s + slotHrs(c.start, c.end), 0) }; }).filter(r => r.cs.length);
   const tot = rows.reduce((s, r) => ({ n: s.n + r.cs.length, ks: s.ks + r.ks }), { n: 0, ks: 0 });
   return `<section class="panel">
     <div class="row"><h2>${L("课时统计")}</h2><span class="payseg" role="group"><button type="button" data-tchper="week" aria-pressed="${wk}">${L("按周")}</button><button type="button" data-tchper="month" aria-pressed="${!wk}">${L("按月")}</button></span>
       <div class="row" style="gap:4px"><button type="button" class="btn small" data-tchmon="-1" aria-label="${L(wk ? "上周" : "上个月")}">‹</button><b style="min-width:7.5em;text-align:center">${esc(wk ? `${a.slice(5)} – ${b.slice(5)}` : monthLabel(m))}</b><button type="button" class="btn small" data-tchmon="1" aria-label="${L(wk ? "下周" : "下个月")}" ${cur ? "disabled" : ""}>›</button></div>
       <span class="muted">${esc(L("{0} 位老师 · {1} 节 · {2} 课时", rows.length, tot.n, fmtKs(tot.ks)))}</span></div>
     ${rows.length > 1 ? `<div class="row" style="gap:6px">${rows.map(r => `<button type="button" class="btn small" data-ksjump="${esc(r.x.id)}">${esc(r.x.name || r.x.nameEs || "")} <b>${fmtKs(r.ks)}</b></button>`).join("")}</div>` : ""}
-    <p class="muted" style="margin:0;font-size:12.5px">${L("每 45 分钟算 1 课时（40 分钟 = 0.9）。只算到今天、没取消的课；代课算在实际上课的老师名下。")}${S.since && a < S.since ? " " + esc(L("系统只读最近 200 天的课，{0} 之前的不全。", S.since)) : ""}</p>
+    <p class="muted" style="margin:0;font-size:12.5px">${L("每 45 分钟算 1 课时（40 分钟 = 0.9）。包括思源的课和合作学校、其他课程的时间；只算到今天，节假日和取消的课不算；代课算在实际上课的老师名下。")}${S.since && a < S.since ? " " + esc(L("系统只读最近 200 天的课，{0} 之前的不全。", S.since)) : ""}</p>
   </section>
-  ${rows.length ? rows.map(({ x, cs, ks, h }) => { const sub = cs.filter(c => subOf(c)).length; return `<details class="gsec top" open id="ks-${esc(x.id)}"><summary>${tdot(x.id)}<b>${esc(x.name || "")}</b><span class="muted">${esc(x.nameEs || "")}</span><span class="gcnt">${esc(L("{0} 节 · {1} 课时", cs.length, fmtKs(ks)))}</span><span class="muted" style="font-size:12.5px">${esc(L("{0} 小时", fmtH(h)))}${sub ? " · " + esc(L("其中代课 {0} 节", sub)) : ""}</span></summary>
-    <div class="gbody"><div class="tablewrap"><table class="gt"><thead><tr><th>${L("日期")}</th><th>${L("时间")}</th><th>${L("班级")}</th><th>${L("课时")}</th><th></th></tr></thead><tbody>${cs.map(c => `<tr class="click" data-cls="${esc(c.id)}"><td class="nm">${esc(wd(c.date))} ${esc(c.date.slice(5))}</td><td class="nm">${esc(c.start || "")}–${esc(c.end || "")}</td><td class="nm">${esc(cname(c) || L("课程"))}</td><td class="nm"><b>${fmtKs(ksOf(c))}</b></td><td class="nm">${subOf(c) ? `<span class="pill st-待排课">${esc(L("替 {0} 代课", tdisp(tch(subOf(c))) || "?"))}</span>` : ""}</td></tr>`).join("")}</tbody></table></div></div></details>`; }).join("") : `<div class="empty">${L(wk ? "这周还没有上过课" : "这个月还没有上过课")}</div>`}`;
+  ${rows.length ? rows.map(({ x, cs, ks, h }) => { const sub = cs.filter(c => c.cover).length; return `<details class="gsec top" open id="ks-${esc(x.id)}"><summary>${tdot(x.id)}<b>${esc(x.name || "")}</b><span class="muted">${esc(x.nameEs || "")}</span><span class="gcnt">${esc(L("{0} 节 · {1} 课时", cs.length, fmtKs(ks)))}</span><span class="muted" style="font-size:12.5px">${esc(L("{0} 小时", fmtH(h)))}${sub ? " · " + esc(L("其中代课 {0} 节", sub)) : ""}</span></summary>
+    <div class="gbody">${lessonTable(cs)}</div></details>`; }).join("") : `<div class="empty">${L(wk ? "这周还没有上过课" : "这个月还没有上过课")}</div>`}`;
 }
 // week by week: how many 课时 and exactly which sessions (newest week first, open by default)
 function weekKsHtml(id, n = 8) {
   const t = today(), w0 = mondayOf(t);
-  const weeks = [...Array(n)].map((_, i) => addDays(w0, -7 * i)).filter(w => !S.since || addDays(w, 6) >= S.since).map(w => ({ w, cs: CL().filter(c => c.teacherId === id && c.date >= w && c.date <= addDays(w, 6) && c.date <= t).sort(byStart) }));
+  const weeks = [...Array(n)].map((_, i) => addDays(w0, -7 * i)).filter(w => !S.since || addDays(w, 6) >= S.since).map(w => ({ w, cs: lessonsOf(id, w, [addDays(w, 6), t].sort()[0]) }));
   return `<h3>${L("每周课时")}</h3><div style="display:grid;gap:6px">${weeks.map(({ w, cs }, i) => `<details class="gsec"${i === 0 ? " open" : ""}><summary><b>${esc(`${w.slice(5)} – ${addDays(w, 6).slice(5)}`)}</b><span class="gcnt">${esc(L("{0} 节 · {1} 课时", cs.length, fmtKs(cs.reduce((s, c) => s + ksOf(c), 0))))}</span>${i === 0 ? `<span class="muted" style="font-size:12px">${L("本周（到今天）")}</span>` : ""}</summary>
-    <div class="gbody">${cs.length ? `<div class="tablewrap"><table class="gt"><thead><tr><th>${L("日期")}</th><th>${L("时间")}</th><th>${L("班级")}</th><th>${L("课时")}</th><th></th></tr></thead><tbody>${cs.map(c => `<tr class="click" data-cls="${esc(c.id)}"><td class="nm">${esc(wd(c.date))} ${esc(c.date.slice(5))}</td><td class="nm">${esc(c.start || "")}–${esc(c.end || "")}</td><td class="nm">${esc(cname(c) || L("课程"))}</td><td class="nm"><b>${fmtKs(ksOf(c))}</b></td><td class="nm">${subOf(c) ? `<span class="pill st-待排课">${esc(L("替 {0} 代课", tdisp(tch(subOf(c))) || "?"))}</span>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<span class="muted">${L("这周没有课")}</span>`}</div></details>`).join("")}</div>`;
+    <div class="gbody">${cs.length ? lessonTable(cs) : `<span class="muted">${L("这周没有课")}</span>`}</div></details>`).join("")}</div>`;
 }
 // the teacher page's record: monthly counts, classes taught before, covers and teacher changes
 function tRecordHtml(x) {
@@ -5031,7 +5112,7 @@ render();
     sub(db.collection("items").limit(500), "i", "items");
     sub(db.collection("loans").where("returnedAt", "==", "").limit(1000), "o", "loans");
     sub(db.collection("itemreqs").where("teacherId", "==", tid).limit(500), "iq", "itemreqs");
-    Object.assign(S.ready, { p: true, x: true, g: true, e: true, m: true, f: true });
+    Object.assign(S.ready, { p: true, x: true, g: true, e: true, m: true, f: true, ss: true });
     return;
   }
   sub(db.collection("attendance").where("date", ">=", addDays(today(), -400)).limit(5000), "at", "attendance");
@@ -5046,6 +5127,7 @@ render();
   sub(db.collection("groups").limit(1000), "g", "groups");
   sub(db.collection("items").limit(500), "i", "items");
   sub(db.collection("loans").limit(1000), "o", "loans");
+  sub(db.collection("slotsubs").where("date", ">=", since).limit(3000), "ss", "slotsubs");
   sub(db.collection("itemreqs").where("createdAt", ">=", new Date(Date.now() - 200 * 864e5).toISOString()).limit(1000), "iq", "itemreqs");
   sub(db.collection("docs").limit(1000), "dc", "docs");
   sub(db.collection("leads").limit(1000), "e", "leads");
