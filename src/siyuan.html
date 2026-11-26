@@ -1626,7 +1626,7 @@ function viewTT() {
 }
 function tsForm(x) {
   const ks = S.courses.filter(k => k.teacherId === x.id && kStat(k) !== "已结束").sort(byLevel), pn = { ...(x.pnotes || {}) }, sites = S.locations.filter(l => l.type === "教学点").sort(byLoc);
-  const row = (s = {}) => `<div class="row tsrow"><select name="d" aria-label="${L("星期")}">${WDAYS.map((d, i) => `<option value="${d}" ${String(s.d) === d ? "selected" : ""}>${L(WDN[i])}</option>`).join("")}</select><input type="time" name="a" value="${esc(s.start || "")}" required aria-label="${L("开始")}"><span>–</span><input type="time" name="b" value="${esc(s.end || "")}" required aria-label="${L("结束")}"><select name="k" aria-label="${L("类型")}">${Object.entries(TSK).map(([k, l]) => `<option value="${k}" ${s.kind === k ? "selected" : ""}>${L(l)}</option>`).join("")}</select><select name="loc" aria-label="${L("教学点")}" ${s.kind === "partner" ? "" : "hidden"}><option value="">${L("选择教学点")}</option>${sites.map(l => `<option value="${l.id}" ${s.locationId === l.id ? "selected" : ""}>${esc(lname(l))}</option>`).join("")}</select><input name="p" value="${esc(s.place || "")}" placeholder="${L("学校或课程，例：Matovelle")}" class="tsp"><input name="g" value="${esc(s.grp || "")}" placeholder="${L("班级，例：EGB 4A")}" class="tsg" list="tsglist" aria-label="${L("班级")}"><button type="button" class="btn small" data-rmts aria-label="${L("删除")}">✕</button></div>`;
+  const row = (s = {}) => `<div class="row tsrow"><select name="d" aria-label="${L("星期")}">${WDAYS.map((d, i) => `<option value="${d}" ${String(s.d) === d ? "selected" : ""}>${L(WDN[i])}</option>`).join("")}</select><input type="time" name="a" value="${esc(s.start || "")}" required aria-label="${L("开始")}"><span>–</span><input type="time" name="b" value="${esc(s.end || "")}" required aria-label="${L("结束")}"><select name="k" aria-label="${L("类型")}">${Object.entries(TSK).map(([k, l]) => `<option value="${k}" ${s.kind === k ? "selected" : ""}>${L(l)}</option>`).join("")}</select><select name="loc" aria-label="${L("教学点")}" ${s.kind === "partner" ? "" : "hidden"}><option value="">${L("选择教学点")}</option>${sites.map(l => `<option value="${l.id}" ${s.locationId === l.id ? "selected" : ""}>${esc(lname(l))}</option>`).join("")}</select><input name="p" value="${esc(s.place || "")}" placeholder="${L("学校或课程，例：Matovelle")}" class="tsp"><input name="g" value="${esc(s.grp || "")}" placeholder="${L("班级，例：EGB 4A")}" class="tsg" list="tsglist" aria-label="${L("班级")}">${s.gid ? `<input type="hidden" name="gid" value="${esc(s.gid)}">` : ""}<button type="button" class="btn small" data-rmts aria-label="${L("删除")}">✕</button></div>`;
   const el = openSheet(`<form id="tsform" style="display:grid;gap:12px">
     <div class="row"><h2>${esc(L("{0} 的每周时间", x.name))}</h2><span class="spacer"></span><button type="button" class="btn" data-close>${L("取消")}</button><button class="btn primary">${L("保存")}</button></div>
     <div class="panel"><h3>${L("思源的课（自动）")}</h3>
@@ -1660,7 +1660,7 @@ function tsForm(x) {
   });
   $("#tsform", el).addEventListener("submit", async e => {
     e.preventDefault(); const say = m => { $("#tsmsg", el).textContent = m; }, v = (r, n) => r.querySelector(`[name=${n}]`).value;
-    const slots = [...box.children].map(r => Object.assign({ d: +v(r, "d"), start: hhmm(v(r, "a")), end: hhmm(v(r, "b")), kind: v(r, "k"), place: v(r, "p").trim() }, v(r, "k") === "partner" && v(r, "loc") ? { locationId: v(r, "loc") } : {}, v(r, "g").trim() ? { grp: v(r, "g").trim() } : {}));
+    const slots = [...box.children].map(r => Object.assign({ d: +v(r, "d"), start: hhmm(v(r, "a")), end: hhmm(v(r, "b")), kind: v(r, "k"), place: v(r, "p").trim() }, v(r, "k") === "partner" && v(r, "loc") ? { locationId: v(r, "loc") } : {}, v(r, "g").trim() ? { grp: v(r, "g").trim() } : {}, r.querySelector("[name=gid]") ? { gid: v(r, "gid") } : {}));
     if (slots.some(s => !s.start || !s.end)) return say(L("请把时间填完整"));
     if (slots.some(s => s.end <= s.start)) return say(L("结束时间要晚于开始时间"));
     const pnotes = Object.fromEntries([...new Set(slots.map(s => s.place).filter(Boolean))].map(p => [p, (pn[p] || "").trim()]).filter(([, n]) => n));
@@ -1762,6 +1762,7 @@ function viewGroups() {
 }
 // the groups a hand-kept slot stands for: same teacher and school (or class type), and the grade written on the slot when there is one
 function slotMatch(tid, s) {
+  if (s.gid) { const g = S.groups.find(y => y.id === s.gid); return g ? [g] : []; }
   const gs = slotGroups(tid, s), w = (s.grp || "").trim(), norm = x => String(x || "").replace(/\s+/g, "");
   if (!w) return gs;
   const parts = w.split(/[、,，;；/]+/).map(norm).filter(Boolean), hit = gs.filter(g => parts.some(p => norm(g.name).includes(p) || p.includes(norm(g.name))));
@@ -1770,6 +1771,7 @@ function slotMatch(tid, s) {
 function slotView(tid, s) {
   const x = tch(tid), gs = slotMatch(tid, s).sort(byGroup), loc = locOf(s.locationId), place = loc ? lname(loc) : s.place || L(TSK[s.kind] || "其他课程");
   const times = tSlots(x).filter(y => y.kind === s.kind && (s.kind === "partner" ? y.locationId === s.locationId : y.place === s.place) && (!s.grp || y.grp === s.grp));
+  const cvs = S.slotsubs.filter(c => c.tid === tid && c.date >= mondayOf(today()) && times.concat([s]).some(y => String(y.d) === String(c.d) && y.start === c.start && y.end === c.end)).sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
   const one = gs.length === 1 ? gs[0] : null, k = one && gCourse(one), stu = one ? (k ? (k.studentIds || []).map(stu).filter(Boolean) : gOnStu(one)) : [];
   const el = openSheet(`<div style="display:grid;gap:12px">
     <div class="row"><h2>${esc(one ? one.name : [place, s.grp].filter(Boolean).join(" "))}</h2><span class="spacer"></span>${one ? `<button type="button" class="btn" data-sveditg>${L("编辑班级")}</button>` : ""}<button type="button" class="btn" data-close>${L("关闭")}</button></div>
@@ -1780,6 +1782,7 @@ function slotView(tid, s) {
       ${one?.section ? `<span>${L("分部")}</span><span>${esc(one.section)}</span>` : ""}
       ${one ? `<span>${L("学生")}</span><span>${stu.length ? esc(L("{0} 人", stu.length)) : one.size != null ? esc(L("{0} 人", one.size)) : "—"}</span>` : ""}
       ${one?.note ? `<span>${L("备注")}</span><span>${esc(one.note)}</span>` : ""}
+      ${cvs.length ? `<span>${L("代课")}</span><span style="display:flex;flex-wrap:wrap;gap:4px">${cvs.map(c => `<span class="pill st-待排课">${esc(L("{0} 由 {1} 代课", `${c.date.slice(5)} ${wd(c.date)} ${c.start}`, tdisp(tch(c.subId)) || "?"))}</span>`).join("")}</span>` : ""}
     </div>
     ${stu.length ? `<div class="row" style="gap:6px">${stu.map(y => `<span class="stuchip">${esc(sname(y))}</span>`).join("")}</div>` : ""}
     ${gs.length > 1 ? `<div><p class="muted" style="margin:0 0 6px">${L("这个时间对应好几个班，点一个查看：")}</p><div class="tablewrap"><table class="gt"><thead><tr><th>${L("班级")}</th><th>${L("人数")}</th><th>${L("备注")}</th></tr></thead><tbody>${gs.map(g => `<tr class="click" data-svg="${g.id}"><td class="nm"><b>${esc(g.name)}</b>${g.section ? ` <span class="muted">${esc(g.section)}</span>` : ""}</td><td>${(gCourse(g) ? (gCourse(g).studentIds || []).length : gOnStu(g).length) || (g.size ?? "—")}</td><td class="wrap">${esc(g.note || "")}</td></tr>`).join("")}</tbody></table></div></div>` : ""}
@@ -1796,7 +1799,7 @@ function slotView(tid, s) {
   // the slots this class stands for in the teacher's week (every weekday it meets)
   const same = y => y.kind === s.kind && (s.kind === "partner" ? y.locationId === s.locationId && (y.grp || "") === (s.grp || "") : (y.place || "") === (s.place || "") && (y.grp || "") === (s.grp || ""));
   const saveSlots = async slots => { const { id, ...rest } = tch(tid); await save("teachers", tid, { ...rest, tslots: slots.sort(bySlot), updatedAt: new Date().toISOString() }); };
-  let subFrom = today(), subTo = addDays(today(), 6);
+  let subFrom = S.weekStart || mondayOf(today()), subTo = addDays(subFrom, 6);
   const drawSub = () => {
     const ls = svLessons(tid, subFrom, subTo).map(l => ({ ...l, same: !!l.o && same(l.o.s) })), others = S.teachers.filter(t => t.id !== tid && tStatus(t) === "在职").sort(byName);
     $("#svsubin", el).innerHTML = `<div class="grid2"><label class="f">${L("从")}<input type="date" data-svf value="${subFrom}"></label><label class="f">${L("到")}<input type="date" data-svt value="${subTo}"></label></div>
@@ -1812,7 +1815,7 @@ function slotView(tid, s) {
     if (e.target.closest("[data-close]")) closeSheet();
     if (e.target.closest("[data-sveditg]")) { k ? courseView(k) : groupForm(one); }
     const r = e.target.closest("[data-svg]"); if (r) { const g = S.groups.find(y => y.id === r.dataset.svg), gk = g && gCourse(g); if (gk) courseView(gk); else if (g) groupForm(g); }
-    if (e.target.closest("[data-svnew]")) { groupForm({ locationId: s.kind === "partner" ? s.locationId || "" : "", program: s.kind === "partner" ? "" : s.place || "", name: s.grp || "", teacherId: tid }); }
+    if (e.target.closest("[data-svnew]")) { groupForm({ locationId: s.kind === "partner" ? s.locationId || "" : "", program: s.kind === "partner" ? "" : s.place || "", name: s.grp || "", teacherId: tid, times: (times.length ? times : [s]).map(y => ({ d: +y.d, start: y.start, end: y.end })) }); }
     if (e.target.closest("[data-svtime]")) tsForm(x);
     const sa = e.target.closest("[data-svall]"); if (sa) el.querySelectorAll("[data-svl]").forEach(c => { const l = el._ls.find(y => y.key === c.dataset.svl); c.checked = sa.dataset.svall === "same" ? !!l?.same : sa.dataset.svall === "1"; });
     const sv = e.target.closest("[data-svsave]"); if (sv) {
@@ -1825,6 +1828,37 @@ function slotView(tid, s) {
     if (e.target.closest("[data-svgo]")) { const nn = el.querySelector("[data-svnext]").value.trim(); if (!nn) return toast(L("请填写新名称"));
       (async () => { await saveSlots(tSlots(x).map(y => same(y) ? (s.kind === "partner" ? { ...y, grp: nn } : { ...y, place: nn }) : y)); if (one) { const { id, ...rest } = one; await save("groups", one.id, { ...rest, name: nn, updatedAt: new Date().toISOString(), updatedBy: S.acct?.id || "" }); } closeSheet(); toast(L("已改成：{0}", nn)); })().catch(() => { }); }
   });
+}
+// A group in 班级总表 and the weekly slots that stand for it in its teacher's timetable. New slots carry the group id;
+// older hand-written ones are matched by teacher, school (or class type) and the name written on the slot.
+const gNorm = x => String(x || "").replace(/\s+/g, "").toLowerCase(), gParts = w => String(w || "").split(/[、,，;；/]+/).map(x => x.trim()).filter(Boolean);
+const gNameIn = (g, p) => { const a = gNorm(g.name), b = gNorm(p); return !!a && !!b && (a.includes(b) || b.includes(a)); };
+const gHit = (g, tid, s) => s.gid ? s.gid === g.id : tid === g.teacherId && (s.kind === "partner" ? !!s.locationId && s.locationId === g.locationId : !g.locationId && !!s.place && s.place === g.program) && (!gParts(s.grp).length || gParts(s.grp).some(p => gNameIn(g, p)));
+function gLinked(g) {
+  const out = [];
+  for (const t of S.teachers) for (const s of tSlots(t)) if (gHit(g, t.id, s)) {
+    // an old slot written for several groups, or for the whole school, is shared with the others
+    const n = S.groups.filter(y => y.id !== g.id && gHit(y, t.id, s)).length;
+    out.push({ tid: t.id, s, shared: !s.gid && n > 0 });
+  }
+  return out;
+}
+const gTimesOf = ls => { const m = new Map(); for (const o of ls) m.set(`${o.s.d}|${o.s.start}|${o.s.end}`, { d: +o.s.d, start: o.s.start, end: o.s.end }); return [...m.values()].sort(bySlot); };
+// write a group's change into the timetables: take its old slots out, put its times in under its (new) teacher
+async function gSync(old, ng, times) {
+  const ls = old ? gLinked(old) : [], byT = new Map(), now = new Date().toISOString();
+  const get = tid => { if (!byT.has(tid)) byT.set(tid, tSlots(tch(tid)).slice()); return byT.get(tid); };
+  for (const o of ls) {
+    const arr = get(o.tid), i = arr.indexOf(o.s); if (i < 0) continue;
+    if (o.shared) { const rest = gParts(o.s.grp).filter(p => !gNameIn(old, p)); if (!gParts(o.s.grp).length) continue; if (rest.length) { arr[i] = { ...o.s, grp: rest.join("、") }; continue; } }
+    arr.splice(i, 1);
+  }
+  if (ng && ng.teacherId && times.length) {
+    const arr = get(ng.teacherId), proto = (ls.find(o => !o.shared) || ls[0])?.s || {};
+    const place = ng.locationId ? (proto.locationId === ng.locationId && proto.place) || locOf(ng.locationId)?.name || "" : ng.program;
+    for (const x of times) arr.push({ d: +x.d, start: x.start, end: x.end, kind: ng.locationId ? "partner" : "other", ...(ng.locationId ? { locationId: ng.locationId } : {}), place, grp: ng.name, gid: ng.id });
+  }
+  for (const [tid, arr] of byT) { const t = tch(tid); if (!t) continue; const { id, ...rest } = t; await save("teachers", tid, { ...rest, tslots: arr.sort(bySlot), updatedAt: now }); }
 }
 // "HSK5 网课" -> "HSK6 网课", "Nivel 2" -> "Nivel 3", "五年级上" -> "五年级下"
 function nextName(n) {
@@ -1845,6 +1879,8 @@ function groupForm(g, preset = "") {
   g = g || { locationId: preset.startsWith("loc:") ? preset.slice(4) : preset.startsWith("prog:") ? "" : sites[0]?.id || "", program: preset.startsWith("prog:") ? preset.slice(5) : "" };
   const secs = [...new Set(S.groups.map(x => x.section).filter(Boolean))].sort((a, b) => secRank(a) - secRank(b));
   const progs = [...new Set([...S.groups.map(x => x.program), ...S.teachers.flatMap(t => tSlots(t).filter(s => s.kind === "other").map(s => s.place))].filter(Boolean))];
+  const linked = isNew ? [] : gLinked(g), t0 = linked.length ? gTimesOf(linked) : (g.times || []).slice().sort(bySlot);
+  const gtRow = (x = {}) => `<div class="row gtrow" style="gap:6px"><select name="gd" style="width:auto" aria-label="${L("星期")}">${WDAYS.map((d, i) => `<option value="${d}" ${String(x.d ?? "1") === d ? "selected" : ""}>${L(WDN[i])}</option>`).join("")}</select><input type="time" name="ga" value="${esc(x.start || "")}" style="width:auto" aria-label="${L("开始")}"> – <input type="time" name="gb" value="${esc(x.end || "")}" style="width:auto" aria-label="${L("结束")}"><button type="button" class="btn small" data-rmgt aria-label="${L("删除")}">✕</button></div>`;
   const el = openSheet(`<form id="grpform" style="display:grid;gap:12px">
     <div class="row"><h2>${L(isNew ? "添加班级" : "修改班级")}</h2><span class="spacer"></span><button type="button" class="btn" data-close>${L("取消")}</button><button class="btn primary">${L("保存")}</button></div>
     <div class="grid2">
@@ -1857,13 +1893,20 @@ function groupForm(g, preset = "") {
       <label class="f" style="grid-column:1/-1">${L("对应系统里的班（可选）")}<select name="courseId"><option value="">${L("不对应（只记人数）")}</option>${S.courses.filter(k => kStat(k) !== "已结束" || k.id === g.courseId).sort(byLevel).map(k => `<option value="${k.id}" ${g.courseId === k.id ? "selected" : ""}>${esc(cname(k))} · ${esc(tLabel(k) || "")} · ${esc(slotText(k))}</option>`).join("")}</select><span class="muted" style="font-size:12.5px">${L("选了以后，点这一行就打开那个班，能看到学生名单，人数也按名单算。")}</span></label>
       <label class="f">${L("备注")}<input name="note" value="${esc(g.note || "")}"></label>
     </div>
+    <div class="panel" id="gtimes" ${g.courseId ? "hidden" : ""}><h3>${L("每周上课时间")}</h3><div id="gtrows" style="display:grid;gap:6px">${t0.map(gtRow).join("")}</div>
+      <div class="row" style="margin-top:6px"><button type="button" class="btn small" data-addgt>${L("＋ 添加时间")}</button></div>
+      <p class="muted" style="margin:6px 0 0;font-size:12.5px">${L("老师的课表跟着这个班走：改了时间、老师、名称，或者删除这个班，保存后老师课表里也会一起改。")}</p></div>
     ${isNew ? "" : `<div class="row"><span class="spacer"></span><button type="button" class="btn small danger" data-del>${L("删除这个班级")}</button></div>`}
   </form>`, true);
   const form = $("#grpform", el), F = n => form.querySelector(`[name=${n}]`), sync = () => { $("#progf", el).hidden = !!F("locationId").value; };
   sync(); F("locationId").addEventListener("change", sync);
+  F("courseId").addEventListener("change", () => { $("#gtimes", el).hidden = !!F("courseId").value; });
+  const gtBox = $("#gtrows", el);
   el.addEventListener("click", e => {
     if (e.target.closest("[data-close]")) closeSheet();
-    if (e.target.closest("[data-del]")) confirmBox(L("删除这个班级"), L("删除班级“{0}”？", g.name), async () => { await remove("groups", g.id); closeSheet(); toast(L("已删除")); });
+    if (e.target.closest("[data-addgt]")) { const last = gtBox.lastElementChild; gtBox.insertAdjacentHTML("beforeend", gtRow(last ? { d: last.querySelector("[name=gd]").value, start: last.querySelector("[name=ga]").value, end: last.querySelector("[name=gb]").value } : {})); }
+    const rm = e.target.closest("[data-rmgt]"); if (rm) rm.closest(".gtrow").remove();
+    if (e.target.closest("[data-del]")) confirmBox(L("删除这个班级"), L("删除班级“{0}”？老师课表里这个班的时间也会去掉。", g.name), async () => { await gSync(g, null, []); await remove("groups", g.id); closeSheet(); toast(L("已删除")); });
   });
   form.addEventListener("submit", async e => {
     e.preventDefault();
@@ -1871,10 +1914,16 @@ function groupForm(g, preset = "") {
     if (!loc && !prog) return toast(L("请选择教学点，或者写上类别"));
     const names = isNew ? F("name").value.split(/[、,，;；\n]+/).map(x => x.trim()).filter(Boolean) : [F("name").value.trim()];
     if (!names.length || !names[0]) return toast(L("请填写班级名称"));
-    const now = new Date().toISOString(), base = { locationId: loc, program: prog, section: F("section").value.trim(), teacherId: F("teacherId").value, note: F("note").value.trim(), size: F("size").value === "" ? null : +F("size").value, courseId: F("courseId").value, updatedAt: now, updatedBy: S.acct?.id || "" };
+    const times = F("courseId").value ? [] : [...gtBox.children].map(r => ({ d: +r.querySelector("[name=gd]").value, start: hhmm(r.querySelector("[name=ga]").value), end: hhmm(r.querySelector("[name=gb]").value) })).sort(bySlot);
+    if (times.some(x => !x.start || !x.end)) return toast(L("请把时间填完整"));
+    if (times.some(x => x.end <= x.start)) return toast(L("结束时间要晚于开始时间"));
+    const now = new Date().toISOString(), base = { locationId: loc, program: prog, section: F("section").value.trim(), teacherId: F("teacherId").value, note: F("note").value.trim(), size: F("size").value === "" ? null : +F("size").value, courseId: F("courseId").value, times, updatedAt: now, updatedBy: S.acct?.id || "" };
+    const tk = x => JSON.stringify(x.map(y => [+y.d, y.start, y.end]));
     try {
-      if (isNew) { for (const n of names) await save("groups", newId("groups"), { ...base, name: n, createdAt: now, createdBy: S.acct?.id || "" }); }
-      else { const { id, ...rest } = g; await save("groups", g.id, { ...rest, ...base, name: names[0] }); }
+      if (isNew) { for (const n of names) { const id = newId("groups"), d = { ...base, name: n, createdAt: now, createdBy: S.acct?.id || "" }; await save("groups", id, d); if (names.length === 1 && times.length) await gSync({ ...d, id }, { ...d, id }, times); } }
+      else { const { id, ...rest } = g, d = { ...rest, ...base, name: names[0] }; await save("groups", g.id, d);
+        // only touch the timetable when something it shows changed
+        if (!base.courseId && (tk(times) !== tk(t0) || ["teacherId", "name", "locationId", "program"].some(f => (d[f] || "") !== (g[f] || "")))) await gSync(g, { ...d, id: g.id }, times); }
       closeSheet(); toast(L(names.length > 1 ? "已添加 {0} 个班级" : "已保存", names.length));
     } catch { }
   });
@@ -4539,6 +4588,7 @@ Object.assign(ES, {"班级详情": "Detalle del grupo", "这个时间对应好�
 Object.assign(ES, {"只考 HSK": "Solo HSK", "只来考 HSK，不在学校上课：转到 HSK 考生名单，不再提醒": "Solo vino a rendir el HSK, no estudia aquí: pasa a la lista de candidatos HSK y deja de aparecer", "已转到 HSK 考生：{0}": "Pasó a candidatos HSK: {0}"});
 Object.assign(ES, {"老师请假：勾选要代的课（可以多选，思源的课和其他教学点的课都在这里），选代课老师": "Profesor ausente: marca las clases a reemplazar (varias a la vez, de Siyuan y de otros sitios) y elige el reemplazo", "已结课": "Grupo terminado", "这个班上完了：结课，或者继续上下一级": "El grupo terminó: cerrarlo o seguir al siguiente nivel", "结课：从课表里去掉": "Cerrar: quitar del horario", "去掉 {0} 每周时间里的“{1}”": "Quita «{1}» del horario semanal de {0}", "继续上下一级，新名称": "Seguir al siguiente nivel, nombre nuevo", "改成下一级": "Pasar al siguiente nivel", "下一级沿用同样的时间；时间不一样的话，改完再到老师的每周时间里调。": "El siguiente nivel mantiene el horario; si cambia, ajústalo luego en el horario semanal del profesor.", "全选": "Todas", "全不选": "Ninguna", "只选这个班": "Solo este grupo", "由 {0} 代课": "Reemplazo: {0}", "选“原老师”再保存，就是取消代课。": "Elige al profesor original y guarda para quitar el reemplazo.", "保存代课": "Guardar reemplazo", "这段时间没有课": "No hay clases en estas fechas", "请先勾选要代的课": "Marca primero las clases", "已取消 {0} 节代课": "{0} reemplazos quitados", "结课": "Cerrar grupo", "从 {0} 的每周时间里去掉“{1}”？班级总表里的班不会删除，以前的课时记录也会保留。": "¿Quitar «{1}» del horario semanal de {0}? El grupo en la lista no se borra y las horas pasadas se conservan.", "已结课：{0}": "Cerrado: {0}", "请填写新名称": "Escribe el nombre nuevo", "已改成：{0}": "Cambiado a: {0}", "每 45 分钟算 1 课时（40 分钟 = 0.9）。包括思源的课和合作学校、其他课程的时间；只算到今天，节假日和取消的课不算；代课算在实际上课的老师名下。": "Cada 45 minutos es 1 hora de clase (40 min = 0,9). Incluye clases de Siyuan, colegios aliados y otros cursos; solo hasta hoy, sin feriados ni clases canceladas; los reemplazos cuentan para quien dio la clase."});
 Object.assign(ES, {"不用考勤": "Sin asistencia", "这个班要考勤": "Este grupo lleva asistencia", "不勾的话，老师不用给这个班拍照点到，也不会提醒没填考勤。": "Si no se marca, el profesor no toma fotos ni pasa lista en este grupo, y no habrá avisos de asistencia pendiente."});
+Object.assign(ES, {"老师的课表跟着这个班走：改了时间、老师、名称，或者删除这个班，保存后老师课表里也会一起改。": "El horario del profesor sigue a este grupo: si cambias el horario, el profesor o el nombre, o eliminas el grupo, al guardar también cambia en su horario.", "删除班级“{0}”？老师课表里这个班的时间也会去掉。": "¿Eliminar el grupo «{0}»? También se quitará su horario del profesor.", "{0} 由 {1} 代课": "{0} la da {1}"});
 Object.assign(ES, {"外聘": "Externo", "外聘老师": "Profesores externos"});
 Object.assign(ES, {"结束日期不能早于开始日期": "La fecha de fin no puede ser anterior a la de inicio"});
 Object.assign(ES, {"网络较慢，付款记录还在同步，现在看到的可能不完整。": "La conexión va lenta: los pagos aún se están sincronizando y la lista puede estar incompleta.", "首页": "Inicio", "教学安排": "Clases", "老师管理": "Profesores", "财务": "Finanzas", "行政": "Administración"});
