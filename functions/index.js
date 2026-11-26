@@ -42,10 +42,12 @@ exports.saveAccount = onCall(opts, async req => {
   if (!ROLES.includes(role)) fail("invalid-argument", "role");
   if (pw) checkPw(pw);
   // a teacher account is tied to one name in the teacher list: it sees that teacher's classes only
-  if (role === "teacher" && (typeof teacherId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(teacherId) || !(await db.doc(`teachers/${teacherId}`).get()).exists)) fail("invalid-argument", "Elige el profesor de esta cuenta / 请选择这个账号对应的老师");
+  // other accounts (e.g. 教务) may also be linked to a teacher when that person teaches too; the owner role never is
+  const wantT = role === "teacher" || (role !== "owner" && !!teacherId);
+  if (wantT && (typeof teacherId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(teacherId) || !(await db.doc(`teachers/${teacherId}`).get()).exists)) fail("invalid-argument", "Elige el profesor de esta cuenta / 请选择这个账号对应的老师");
   const ref = db.doc(`accounts/${uname}`), cur = await ref.get();
   if (isNew && cur.exists) fail("already-exists", "Ese usuario ya existe / 这个用户名已经有了");
-  const self = uname === t.uname, rl = self ? "owner" : role, on = self ? true : !!active, tid = rl === "teacher" ? teacherId : null;
+  const self = uname === t.uname, rl = self ? "owner" : role, on = self ? true : !!active, tid = rl !== "owner" && wantT ? teacherId : null;
   if (!(rl === "owner" && on)) {
     const owners = await db.collection("accounts").where("role", "==", "owner").get();
     if (!owners.docs.some(d => d.id !== uname && d.data().active !== false)) fail("failed-precondition", "Debe quedar un administrador general activo / 至少要保留一个在用的总管理员");

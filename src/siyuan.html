@@ -925,7 +925,7 @@ function docForm(d) {
 }
 
 /* ---------- render ---------- */
-const TAB_GROUPS = [["首页", ["home"]], ["学生", ["students", "leads", "flyer"]], ["教学安排", ["schedule", "groups", "teachers", "tatt"]], ["老师管理", ["tch", "staff", "zoom"]], ["财务", ["payments", "receipts"]], ["行政", ["docs", "loans", "vault"]]];
+const TAB_GROUPS = [["首页", ["home"]], ["学生", ["students", "leads", "flyer"]], ["教学安排", ["schedule", "groups", "teachers", "tatt"]], ["老师管理", ["tch", "staff", "zoom"]], ["财务", ["payments", "receipts"]], ["行政", ["docs", "loans", "vault"]], ["我的教学", ["my", "att", "grades", "mystu", "borrow", "prof"]]];
 function renderChrome() {
   document.documentElement.lang = S.lang === "es" ? "es" : "zh-CN";
   // the timetable panel spreads wider than the page; the header above stays where it is on every tab
@@ -933,8 +933,8 @@ function renderChrome() {
   $("#brandname").textContent = L("思源中文学校");
   $("#brandsub").textContent = L("内部管理 · Uso interno");
   const n = alerts().filter(a => !a.paused).length;
-  const tabs = S.acct && isTch() ? [["my", "我的课表"], ["att", "考勤"], ["grades", "我的班级"], ["mystu", "我的学生"], ["zoom", "Zoom 使用"], ["borrow", "借物品"], ["prof", "我的资料"]] : S.acct ? [["home", "首页提醒"], ["students", "学生"], ["schedule", "课程安排"], ["tch", "教师"], ["teachers", "教师课表"], ["groups", "班级总表"], ["tatt", "老师考勤"], ["flyer", "开课信息"], ["leads", "意向登记"], ...(noPay() ? [] : [["payments", "付款记录"], ["receipts", "收据"]]), ["loans", "物品借用"], ["docs", "文件库"], ["staff", "老师和教学点"], ["zoom", "Zoom 使用"], ...(canVault() ? [["vault", "账号密码"]] : [])] : [];
-  const cnt = k => k === "home" ? n : k === "docs" ? docsDue().length : k === "leads" ? leadDue().length : k === "loans" ? dueLoans().length + iqOpen().length : k === "borrow" ? myDueLoans().length : 0;
+  const tabs = S.acct && isTch() ? [["my", "我的课表"], ["att", "考勤"], ["grades", "我的班级"], ["mystu", "我的学生"], ["zoom", "Zoom 使用"], ["borrow", "借物品"], ["prof", "我的资料"]] : S.acct ? [["home", "首页提醒"], ["students", "学生"], ["schedule", "课程安排"], ["tch", "教师"], ["teachers", "教师课表"], ["groups", "班级总表"], ["tatt", "老师考勤"], ["flyer", "开课信息"], ["leads", "意向登记"], ...(noPay() ? [] : [["payments", "付款记录"], ["receipts", "收据"]]), ["loans", "物品借用"], ["docs", "文件库"], ["staff", "老师和教学点"], ["zoom", "Zoom 使用"], ...(canVault() ? [["vault", "账号密码"]] : []), ...(hasMyT() ? MYT_TABS : [])] : [];
+  const cnt = k => k === "home" ? n : k === "docs" ? docsDue().length : k === "leads" ? leadDue().length : k === "loans" ? dueLoans().length + iqOpen().length : k === "borrow" ? myDueLoans().length : k === "att" && hasMyT() ? myAttTodo() : 0;
   const badge = x => x ? `<span class="count">${x}</span>` : "";
   const tabBtn = ([k, l]) => `<button data-tab="${k}" aria-current="${S.tab === k}">${L(l)}${badge(cnt(k))}</button>`;
   // the office has many pages, so they sit under a few big headings; the chosen heading's pages show on a second row
@@ -1014,6 +1014,10 @@ const noPay = () => S.acct?.role === "edu" || S.acct?.role === "teacher";
 const isTch = () => S.acct?.role === "teacher";
 const myTid = () => (FB ? FB.claims?.tid : null) || S.acct?.teacherId || "";
 const T_TABS = ["my", "att", "grades", "mystu", "zoom", "borrow", "prof"];
+// an office account (e.g. 教务) that also teaches is linked to its own name in the teacher list, and gets its teacher pages under 我的教学
+const hasMyT = () => !!S.acct && !isTch() && !!S.acct.teacherId && !!tch(S.acct.teacherId);
+const myAttTodo = () => { const t = today(); return sessOf(myTid()).filter(c => c.date < t && c.date >= addDays(t, -30) && attMissing(c).length).length; };
+const MYT_TABS = [["my", "我的课表"], ["att", "我的考勤"], ["grades", "我的班级"], ["mystu", "我的学生"], ["borrow", "借物品"], ["prof", "我的资料"]];
 function payGate() {
   if (!S.db || !S.paySub) return;
   const want = !!S.acct && !noPay();
@@ -1132,7 +1136,7 @@ function viewAccounts() {
   return `<section class="panel" id="acctpanel">
     <div class="row"><h2>${L("管理人员账号")}</h2><span class="muted">${L("只有总管理员能看到这一栏")}</span><span class="spacer"></span><button class="btn primary" data-act="newacct">${L("＋ 添加账号")}</button></div>
     <div class="tablewrap"><table><thead><tr><th>${L("用户名")}</th><th>${L("名字")}</th><th>${L("权限")}</th><th>${L("改成绩")}</th><th>${L("最近登录")}</th><th>${L("密码")}</th><th>${L("状态")}</th></tr></thead><tbody>
-    ${rows.map(a => `<tr class="click" data-acct="${esc(a.id)}"><td class="nm"><b>${esc(a.id)}</b>${a.id === S.acct.id ? ` <span class="muted">· ${L("你")}</span>` : ""}</td><td>${esc(a.name || "")}</td><td><span class="pill ${a.role === "owner" ? "st-上课中" : "st-试听"}">${roleL(a.role)}</span>${a.role === "teacher" ? ` <span class="muted" style="font-size:12px">${esc(tdisp(tch(a.teacherId)) || L("未连到老师"))}</span>` : ""}</td><td>${a.role === "owner" || a.scores ? "✓" : '<span class="muted">—</span>'}</td><td>${a.lastLoginAt ? esc(fmtTime(a.lastLoginAt)) : "—"}</td><td>${a.mustChangePw ? acctPwTxt(a) : '<span class="muted">—</span>'}</td><td>${a.active === false ? `<span class="pill st-不上课了">${L("停用")}</span>` : `<span class="pill st-上课中">${L("在用")}</span>`}</td></tr>`).join("")}
+    ${rows.map(a => `<tr class="click" data-acct="${esc(a.id)}"><td class="nm"><b>${esc(a.id)}</b>${a.id === S.acct.id ? ` <span class="muted">· ${L("你")}</span>` : ""}</td><td>${esc(a.name || "")}</td><td><span class="pill ${a.role === "owner" ? "st-上课中" : "st-试听"}">${roleL(a.role)}</span>${a.role === "teacher" || a.teacherId ? ` <span class="muted" style="font-size:12px">${esc(tdisp(tch(a.teacherId)) || L("未连到老师"))}</span>` : ""}</td><td>${a.role === "owner" || a.scores ? "✓" : '<span class="muted">—</span>'}</td><td>${a.lastLoginAt ? esc(fmtTime(a.lastLoginAt)) : "—"}</td><td>${a.mustChangePw ? acctPwTxt(a) : '<span class="muted">—</span>'}</td><td>${a.active === false ? `<span class="pill st-不上课了">${L("停用")}</span>` : `<span class="pill st-上课中">${L("在用")}</span>`}</td></tr>`).join("")}
     </tbody></table></div>
     <p class="muted" style="margin:0;font-size:12.5px">${L("总管理员可以添加、修改、停用账号；管理人员能用其他所有功能，但看不到这一栏。")}</p>
   </section>`;
@@ -1146,9 +1150,9 @@ function accountForm(a) {
       <label class="f">${L("用户名")}<input name="u" value="${esc(a.id || "")}" ${isNew ? "" : "readonly"} autocomplete="off" autocapitalize="none" spellcheck="false"></label>
       <label class="f">${L("名字")}<input name="name" value="${esc(a.name || "")}"></label>
       <label class="f">${L("权限")}<select name="role" ${self ? "disabled" : ""}>${Object.keys(ROLES).map(r => `<option value="${r}" ${a.role === r ? "selected" : ""}>${roleL(r)}</option>`).join("")}</select></label>
-      <label class="f" id="acteach" ${a.role === "teacher" ? "" : "hidden"}>${L("是哪位老师")}<select name="teacherId"><option value="">${L("选择老师")}</option>${S.teachers.filter(t => (t.active !== false && !isExt(t)) || t.id === a.teacherId).sort(byName).map(t => `<option value="${t.id}" ${a.teacherId === t.id ? "selected" : ""}>${esc(tboth(t))}</option>`).join("")}</select></label>
+      <label class="f" id="acteach" ${a.role === "owner" ? "hidden" : ""}>${L("是哪位老师")}<select name="teacherId"><option value="">${L(a.role === "teacher" ? "选择老师" : "不上课（不用选）")}</option>${S.teachers.filter(t => (t.active !== false && !isExt(t)) || t.id === a.teacherId).sort(byName).map(t => `<option value="${t.id}" ${a.teacherId === t.id ? "selected" : ""}>${esc(tboth(t))}</option>`).join("")}</select></label>
     </div>
-    <p class="muted" id="acteachp" style="margin:0;font-size:12.5px" ${a.role === "teacher" ? "" : "hidden"}>${L("老师账号只能看到自己的课、学生、考勤和成绩，看不到付款和其他页面。")}</p>
+    <p class="muted" id="acteachp" style="margin:0;font-size:12.5px" ${a.role === "owner" ? "hidden" : ""}>${L(a.role === "teacher" ? "老师账号只能看到自己的课、学生、考勤和成绩，看不到付款和其他页面。" : "这个人自己也上课的话，选上他是哪位老师：登录后会多一个“我的教学”，里面有他自己的课表、考勤、班级和学生。")}</p>
     <div class="grid2">
       <label class="f">${L(isNew ? "密码" : "新密码（不改就留空）")}<input name="pw" type="password" autocomplete="new-password"></label>
       <label class="f">${L("再输入一次密码")}<input name="pw2" type="password" autocomplete="new-password"></label>
@@ -1160,7 +1164,7 @@ function accountForm(a) {
     <p class="login-err" id="acmsg" role="alert"></p>
     ${isNew || self ? "" : `<div class="row"><span class="spacer"></span><button type="button" class="btn small danger" data-del>${L("删除这个账号")}</button></div>`}
   </form>`, true);
-  el.querySelector("[name=role]").addEventListener("change", e => { const on = e.target.value === "teacher"; $("#acteach", el).hidden = !on; $("#acteachp", el).hidden = !on; });
+  el.querySelector("[name=role]").addEventListener("change", e => { const r = e.target.value, tc = r === "teacher"; $("#acteach", el).hidden = $("#acteachp", el).hidden = r === "owner"; $("#acteach option[value='']", el).textContent = L(tc ? "选择老师" : "不上课（不用选）"); $("#acteachp", el).textContent = L(tc ? "老师账号只能看到自己的课、学生、考勤和成绩，看不到付款和其他页面。" : "这个人自己也上课的话，选上他是哪位老师：登录后会多一个“我的教学”，里面有他自己的课表、考勤、班级和学生。"); });
   el.addEventListener("click", e => {
     if (e.target.closest("[data-close]")) closeSheet();
     if (e.target.closest("[data-pw0]")) { el.querySelector("[name=pw]").value = el.querySelector("[name=pw2]").value = T_PW0; toast(L("保存后生效")); }
@@ -1174,7 +1178,7 @@ function accountForm(a) {
     if (isNew && S.accounts.some(x => x.id === id)) return say(L("这个用户名已经有了。"));
     if (isNew || pw) { const bad = pwProblem(pw, String(fd.get("pw2"))); if (bad) return say(bad); }
     if (!S.accounts.some(x => x.id !== id && x.role === "owner" && x.active !== false) && !(role === "owner" && active)) return say(L("至少要保留一个在用的总管理员。"));
-    const teacherId = role === "teacher" ? fd.get("teacherId") || "" : "";
+    const teacherId = role === "owner" ? "" : fd.get("teacherId") || "";
     if (role === "teacher" && !teacherId) return say(L("请选择这个账号对应的老师"));
     btn.disabled = true;
     const now = new Date().toISOString(), d = { name: String(fd.get("name")).trim() || id, role, active, scores: role === "owner" || (role !== "teacher" && fd.get("scores") === "1"), teacherId, updatedAt: now };
@@ -1211,7 +1215,8 @@ function render() {
   splashReady();
   const ro = S.readOnly ? `<div class="banner">${L("你目前是查看权限，只能看，不能修改。需要修改请让管理员把你设为编辑者。")}</div>` : "";
   if (isTch()) { m.innerHTML = ro + ({ my: viewMy, att: () => viewAtt(myTid()), grades: () => viewGradeList(myTid()), mystu: viewMyStudents, zoom: viewZoom, borrow: viewBorrow, prof: viewMyProfile }[S.tab] || viewMy)(); forcePw(); return; }
-  m.innerHTML = ro + ({ tch: viewTeachers, tatt: viewTAtt, home: viewHome, students: viewStudents, schedule: viewSchedule, teachers: viewTT, groups: viewGroups, loans: viewLoans, docs: viewDocs, flyer: viewFlyer, leads: viewLeads, payments: noPay() ? viewHome : viewPayments, receipts: noPay() ? viewHome : viewReceipts, staff: viewStaff, zoom: viewZoom, vault: () => canVault() ? viewVault() : viewHome() }[S.tab] || viewHome)();
+  const myT = hasMyT() ? { my: viewMy, att: () => viewAtt(myTid()), grades: () => viewGradeList(myTid()), mystu: viewMyStudents, borrow: viewBorrow, prof: viewMyProfile } : {};
+  m.innerHTML = ro + ({ ...myT, tch: viewTeachers, tatt: viewTAtt, home: viewHome, students: viewStudents, schedule: viewSchedule, teachers: viewTT, groups: viewGroups, loans: viewLoans, docs: viewDocs, flyer: viewFlyer, leads: viewLeads, payments: noPay() ? viewHome : viewPayments, receipts: noPay() ? viewHome : viewReceipts, staff: viewStaff, zoom: viewZoom, vault: () => canVault() ? viewVault() : viewHome() }[S.tab] || viewHome)();
   forcePw();
   if (S.tab === "students") { const i = $("#q"); if (i && S._focusQ) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } S._focusQ = false; }
 }
@@ -1900,7 +1905,7 @@ function viewBorrow() {
   const me = myTid(), t = today();
   const mine = openLoans().filter(o => o.teacherId === me).sort((a, b) => (a.dueDate || "9").localeCompare(b.dueDate || "9"));
   const items = S.items.slice().sort((a, b) => (a.name || "").localeCompare(b.name || "", "zh", { numeric: true }));
-  const since = new Date(Date.now() - 30 * 864e5).toISOString(), reqs = S.itemreqs.filter(r => r.status !== "withdrawn" && (r.status === "open" || (r.decidedAt || r.createdAt || "") >= since)).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  const since = new Date(Date.now() - 30 * 864e5).toISOString(), reqs = S.itemreqs.filter(r => r.teacherId === me && r.status !== "withdrawn" && (r.status === "open" || (r.decidedAt || r.createdAt || "") >= since)).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
   return `<section class="panel"><div class="row"><h2>${L("我借着的物品")}</h2><span class="spacer"></span><button class="btn primary" data-iqnew="">${L("＋ 申请借物品")}</button></div>
     ${mine.length ? `<div class="clslist">${mine.map(o => { const late = o.dueDate && o.dueDate < t; return `<div class="row" style="gap:8px"><b>${esc(itemLabel(o.itemId, lqty(o)))}</b><span class="muted">${esc(L("{0} 借出", o.outDate || ""))}</span><span>${esc(L("请在 {0} 前还", o.dueDate || "—"))}</span>${late ? `<span class="pill late">${esc(L("逾期 {0} 天", Math.round((parseD(t) - parseD(o.dueDate)) / 864e5)))}</span>` : o.dueDate === t ? `<span class="pill st-待排课">${L("今天到期")}</span>` : ""}</div>`; }).join("")}</div>` : `<div class="empty">${L("现在没有借学校的物品。")}</div>`}</section>
   ${reqs.length ? `<section class="panel"><h2>${L("我的申请")}</h2><div class="clslist">${reqs.map(r => `<div class="row" style="gap:8px"><b>${esc(itemOf(r.itemId)?.name || r.itemName || "")} ×${esc(r.status === "approved" && r.qtyGiven ? r.qtyGiven : r.qty)}</b><span class="muted">${esc(r.outDate || "")} → ${esc(r.dueDate || "")}</span>${iqStatus(r)}${r.reply ? `<span class="muted">${esc(L("办公室回复：{0}", r.reply))}</span>` : ""}${r.status === "open" ? `<span class="spacer"></span><button class="btn small" data-iqwd="${esc(r.id)}">${L("撤回申请")}</button>` : ""}</div>`).join("")}</div></section>` : ""}
@@ -4385,6 +4390,7 @@ function tPortalClick(t) {
 
 Object.assign(ES, {"HSK 考生": "Candidatos HSK", "＋ 登记 HSK 考生": "＋ Nuevo candidato HSK", "没有在学校上课、只来考 HSK 的人。点名字打开资料，在“HSK 成绩”里记每次考试。他们不会出现在本地学生名单和“需要检查的学生”里。": "Personas que solo rinden el HSK con nosotros, sin estudiar en la escuela. Toca un nombre para abrir su ficha y registra cada examen en «Notas HSK». No aparecen en la lista de estudiantes locales ni en «Estudiantes por revisar».", "搜索姓名、学号、电话、证件号": "Buscar nombre, código, teléfono o C.I.", "考过的 HSK": "HSK rendidos", "最近考试": "Último examen", "还没有成绩": "Sin notas", "还没有 HSK 考生。点“＋ 登记 HSK 考生”添加。": "Aún no hay candidatos HSK. Pulsa «＋ Nuevo candidato HSK».", "HSK 考生（只考试）": "Candidato HSK (solo examen)"});
 Object.assign(ES, {"华裔网课": "Chino heredado en línea", "华裔网课学生": "Estudiantes en línea (chino heredado)", "＋ 登记网课学生": "＋ Nuevo estudiante en línea", "全部网课班": "Todos los grupos en línea", "网课班": "Grupo en línea", "班级总表里还没有华裔网课班": "Aún no hay grupos en línea en Grupos"});
+Object.assign(ES, {"我的教学": "Mi docencia", "我的考勤": "Mi asistencia", "不上课（不用选）": "No da clases (dejar vacío)", "这个人自己也上课的话，选上他是哪位老师：登录后会多一个“我的教学”，里面有他自己的课表、考勤、班级和学生。": "Si esta persona también da clases, elige qué profesor es: al entrar verá «Mi docencia» con su horario, asistencia, grupos y estudiantes."});
 Object.assign(ES, {"外聘": "Externo", "外聘老师": "Profesores externos"});
 Object.assign(ES, {"结束日期不能早于开始日期": "La fecha de fin no puede ser anterior a la de inicio"});
 Object.assign(ES, {"网络较慢，付款记录还在同步，现在看到的可能不完整。": "La conexión va lenta: los pagos aún se están sincronizando y la lista puede estar incompleta.", "首页": "Inicio", "教学安排": "Clases", "老师管理": "Profesores", "财务": "Finanzas", "行政": "Administración"});
@@ -4396,7 +4402,7 @@ const T_STATUS = ["在职", "休假", "离职"], T_PW0 = "12345678";
 const tStatus = x => x?.status || (x?.active === false ? "离职" : "在职");
 const tStPill = x => { const k = tStatus(x); return `<span class="pill ${{ 在职: "st-上课中", 休假: "st-待排课", 离职: "st-暂停" }[k]}">${L(k)}</span>`; };
 const ownOn = id => groupsOf(id).filter(g => g.on && !g.sess.every(c => subOf(c)));
-const tAcct = x => S.accounts.find(a => a.role === "teacher" && a.teacherId === x.id);
+const tAcct = x => S.accounts.find(a => a.role === "teacher" && a.teacherId === x.id) || S.accounts.find(a => a.teacherId === x.id);
 const tAvatar = (x, big) => x.photo ? `<img class="av${big ? " big" : ""}" src="${blobUrl(x.photo)}" alt="" loading="lazy">` : `<span class="av${big ? " big" : ""}" aria-hidden="true" style="${tcolor(x.id) ? `background:${tcolor(x.id)};color:#fff` : ""}">${esc((x.name || x.nameEs || "?").slice(0, 1))}</span>`;
 const tWeekHrs = (id, ws) => CL().filter(c => c.teacherId === id && c.date >= ws && c.date <= addDays(ws, 6)).reduce((h, c) => h + slotHrs(c.start, c.end), 0);
 // usernames come from the Spanish name: "María José" -> maria.jose; pinyin stands in when there is none
@@ -4623,7 +4629,7 @@ function viewMyProfile() {
 }
 // a teacher picks a photo for their own avatar
 document.addEventListener("change", async e => {
-  const f = e.target.matches?.("[data-myav]") && e.target.files[0]; if (!f || !isTch()) return;
+  const f = e.target.matches?.("[data-myav]") && e.target.files[0]; if (!f || !(isTch() || hasMyT())) return;
   const x = tch(myTid()); if (!x) return;
   try { toast(L("上传中…")); const [pid] = await uploadImages([f], IMG.face); if (!pid) return; await S.db.collection("teachers").doc(x.id).update({ photo: pid, updatedAt: new Date().toISOString(), updatedBy: S.acct.id }); toast(L("头像已更新")); }
   catch (err) { toast(L("保存失败：{0}", err?.message || err?.code || err)); }
@@ -4748,7 +4754,7 @@ async function rqClick(t) {
 }
 // the teacher's own requests from the last two weeks, with what the office decided
 function myRqPanel() {
-  const since = new Date(Date.now() - 14 * 864e5).toISOString(), list = S.requests.filter(r => r.status !== "withdrawn" && (r.status === "open" || (r.handledAt || "") >= since)).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  const since = new Date(Date.now() - 14 * 864e5).toISOString(), list = S.requests.filter(r => r.teacherId === myTid() && r.status !== "withdrawn" && (r.status === "open" || (r.handledAt || "") >= since)).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
   if (!list.length) return "";
   return `<section class="panel"><h2>${L("我的申请")}</h2><div class="clslist">${list.map(r => `<div class="row" style="gap:8px"><b>${esc(r.date)} ${esc(r.start)}</b><span>${esc(r.label || "")}</span><span class="pill ${r.kind === "cancel" ? "attmiss" : "st-试听"}">${L(RQ_KIND[r.kind] || r.kind)}</span><span class="pill ${r.status === "open" ? "st-待排课" : r.status === "rejected" ? "attmiss" : "st-上课中"}">${esc(rqResult(r))}</span>${r.reply ? `<span class="muted">${esc(L("办公室回复：{0}", r.reply))}</span>` : ""}</div>`).join("")}</div></section>`;
 }
@@ -4804,8 +4810,8 @@ document.addEventListener("click", e => {
   if (t.closest("[data-regimport]")) { regImport(); return; }
   const le = t.closest("[data-lead]"); if (le && !t.closest("[data-open]")) { const x = S.leads.find(y => y.id === le.dataset.lead); if (x) leadForm(x); return; }
   if (t.closest("[data-iqok],[data-iqno]")) { iqClick(t); return; }
-  const iqn = t.closest("[data-iqnew]"); if (iqn && isTch()) { iqForm(iqn.dataset.iqnew); return; }
-  const iqw = t.closest("[data-iqwd]"); if (iqw && isTch()) { iqw.disabled = true; iqWithdraw(iqw.dataset.iqwd); return; }
+  const iqn = t.closest("[data-iqnew]"); if (iqn && (isTch() || hasMyT())) { iqForm(iqn.dataset.iqnew); return; }
+  const iqw = t.closest("[data-iqwd]"); if (iqw && (isTch() || hasMyT())) { iqw.disabled = true; iqWithdraw(iqw.dataset.iqwd); return; }
   const lb = t.closest("[data-loanback]"); if (lb) { loanBack(lb.dataset.loanback); return; }
   const ln = t.closest("[data-loan]"); if (ln) { const o = S.loans.find(x => x.id === ln.dataset.loan); if (o) loanForm(o); return; }
   const nl = t.closest("[data-newloan]"); if (nl) { loanForm(null, nl.dataset.newloan); return; }
