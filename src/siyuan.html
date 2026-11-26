@@ -670,6 +670,10 @@ const LEVEL_HOURS = { ...Object.fromEntries([1, 2, 3, 4].map(n => [`Nivel ${n}`,
 const toMin = t => { const [h, m] = (t || "").split(":").map(Number); return h * 60 + (m || 0); };
 const slotHrs = (a, b) => a && b && toMin(b) > toMin(a) ? (toMin(b) - toMin(a)) / 60 : 0;
 const fmtH = h => String(+h.toFixed(2));
+// 课时: every 45 minutes of class counts as one 课时 (a 90-minute class is 2)
+const KS_MIN = 45;
+const ksOf = c => c.start && c.end && toMin(c.end) > toMin(c.start) ? (toMin(c.end) - toMin(c.start)) / KS_MIN : 0;
+const fmtKs = k => String(+k.toFixed(1));
 
 /* ---------- Ecuador holidays: computed by the Ley de feriados, adjusted by the school's own list ---------- */
 function easter(y) {
@@ -3674,6 +3678,7 @@ function classForm(c, presetStudent) {
       <label class="f">${L("教学点")}<select name="locationId"><option value="">${L("选择教学点")}</option>${S.locations.slice().sort(byLoc).map(l => `<option value="${l.id}" ${curLoc === l.id ? "selected" : ""}>${esc(lname(l))}</option>`).join("")}</select></label>
       <label class="f">${L("老师")}<select name="teacherId">${isTch() ? "" : `<option value="">${c.teacher && !c.teacherId ? esc(c.teacher) : L("选择老师")}</option>`}${S.teachers.filter(t => isTch() ? t.id === myTid() : t.active !== false || t.id === curT).sort(byName).map(t => `<option value="${t.id}" ${curT === t.id ? "selected" : ""}>${esc(tboth(t))}</option>`).join("")}</select></label>
       <label class="f">${L("教室")}${roomPicker(c)}</label>
+      ${isNew || isTch() ? "" : subBoxHtml(c, kc)}
       ${isNew ? `<label class="f">${L("每周重复")}<select name="repeat"><option value="1">${L("只这一次")}</option><option value="auto">${L("按总课时排满")}</option>${[4, 8, 12, 16, 20, 24, 32, 40].map(n => `<option value="${n}">${L("{0} 节课", n)}</option>`).join("")}</select></label>` : ""}
     </div>
     ${isNew ? `<div class="row" id="cwd" hidden style="gap:6px 14px"><span class="muted" style="font-size:12.5px">${L("每周哪几天上课")}</span>${WDAYS.map((d, i) => `<label style="display:flex;align-items:center;gap:5px;font-size:13.5px"><input type="checkbox" name="rwd" value="${d}" style="width:auto"> ${L(WDN[i])}</label>`).join("")}</div><div class="panel" id="ccal" hidden></div>` : ""}
@@ -3697,10 +3702,13 @@ function classForm(c, presetStudent) {
     if (rp === "1") { box.hidden = !h; box.innerHTML = h ? `<span class="holname">${esc(L("{0} 是节假日：{1}", date, h.name))}</span>` : ""; return; }
     const r = plan(); box.hidden = false; box.innerHTML = r.kd ? calHtml(r.kd, r.dates, r.H, r.lv) : ""; };
   if (isNew) { el.addEventListener("change", e => { if (e.target.name === "rwd") wdTouched = true; if (/^(repeat|level|hours|date|start|end|rwd)$/.test(e.target.name)) ccal(); }); el.addEventListener("input", e => { if (e.target.name === "hours") ccal(); }); el.addEventListener("click", e => { const c = e.target.closest("[data-cd]"); if (c) { const r = plan(); if (r.kd) { toggleDay(r.kd, c.dataset.cd); dr.skip = r.kd.skip; dr.extra = r.kd.extra; } ccal(); } }); ccal(); }
+  el.querySelector("[name=subT]")?.addEventListener("change", e => { const on = !!e.target.value; el.querySelector("#subscope").hidden = !on; });
+  el.querySelector("[name=subScope]")?.addEventListener("change", e => { el.querySelector("#subuntil").hidden = e.target.value !== "until"; });
   el.querySelector("[name=teacherId]").addEventListener("change", e => { const ls = tch(e.target.value)?.locationIds || []; const sel = el.querySelector("[name=locationId]"); if (!sel.value && ls.length === 1) sel.value = ls[0]; });
   el.addEventListener("click", e => {
     if (e.target.closest("[data-close]")) closeSheet();
     if (e.target.closest("[data-cancelcls]")) cancelBox(c);
+    if (e.target.closest("[data-unsub]")) confirmBox(L("取消代课"), L("这节课改回 {0} 上？", tdisp(tch(subOf(c))) || "?"), async () => { await setSessTeacher(c, subOf(c)); closeSheet(); toast(L("已改回原老师")); });
     if (e.target.closest("[data-delcls]")) confirmBox(L("删除这节课？"), `${c.date} ${c.start || ""} ${c.title || ""}`, async () => { await remove("classes", c.id); closeSheet(); toast(L("已删除")); });
     if (e.target.closest("[data-delseries]")) confirmBox(L("删除这节及之后同系列的课？"), L("之前已经上过的课会保留。"), async () => { for (const x of S.classes.filter(x => x.seriesId === c.seriesId && x.date >= c.date)) await remove("classes", x.id); closeSheet(); toast(L("已删除")); });
   });
@@ -3708,6 +3716,8 @@ function classForm(c, presetStudent) {
     e.preventDefault(); const f = e.target, fd = new FormData(f);
     if (!fd.get("date")) return toast(L("请选择日期"));
     if (!pick.ok()) return;
+    const subT = fd.get("subT") || "", scope = fd.get("subScope") || "one", until = fd.get("subUntil") || "";
+    if (subT && scope === "until" && !until) return toast(L("请选代课到哪天"));
     const btn = f.querySelector(".btn.primary"); btn.disabled = true;
     const base = { start: fd.get("start"), end: fd.get("end"), level: levelVal(fd, "level"), title: fd.get("title").trim(), teacherId: isTch() ? myTid() : fd.get("teacherId"), locationId: fd.get("locationId"), ...roomVal(fd, c), note: fd.get("note").trim(), studentIds: pick.ids() };
     const made = { createdBy: S.acct.id, createdAt: new Date().toISOString() };
@@ -3726,8 +3736,12 @@ function classForm(c, presetStudent) {
         for (const f of KF) if ((base[f] ?? "") !== (b[f] ?? "")) d[f] = base[f];
         for (const f of ["movedFrom", "movedBy", "movedAt", "moveReason"]) if (c[f]) d[f] = c[f];
         if ([...base.studentIds].sort().join() !== [...b.studentIds].sort().join()) d.studentIds = base.studentIds;
+        // a session already covered by someone else keeps that mark
+        if (c.subFor && d.teacherId && d.teacherId !== b.teacherId) for (const k of ["subFor", "subBy", "subAt"]) if (c[k]) d[k] = c[k];
+        if (subT) Object.assign(d, subMark(b.teacherId, subT));
         await save("classes", c.id, d); toast(L("已保存"));
-      } else { const d = { ...c, ...base, date: fd.get("date") }; delete d.id; delete d.absentIds; await save("classes", c.id, d); toast(L("已保存")); }
+      } else { const d = { ...c, ...base, date: fd.get("date") }; delete d.id; delete d.absentIds; if (subT) Object.assign(d, subMark(c.teacherId, subT)); await save("classes", c.id, d); toast(L("已保存")); }
+      if (subT) { const n = await subMore(c, kc, subT, scope, until); toast(n ? L("已安排代课：这节和后面 {0} 节", n) : L("已安排代课")); }
       closeSheet(); if (presetStudent) openStudent(presetStudent);
     } catch { btn.disabled = false; }
   });
@@ -4382,7 +4396,8 @@ function tPortalClick(t) {
   if (t.closest("[data-tnewcls]")) { classForm(); return true; }
   if (t.closest("[data-rqcancel],[data-rqsub],[data-rqno],[data-rqmove]")) { rqClick(t); return true; }
   const ts2 = t.closest("[data-tchst]"); if (ts2) { S.tchSt = ts2.dataset.tchst; render(); return true; }
-  const tm = t.closest("[data-tchmon]"); if (tm) { S.tchMon = addMon(S.tchMon || today().slice(0, 7), +tm.dataset.tchmon); render(); return true; }
+  const tm = t.closest("[data-tchmon]"); if (tm) { if (S.tchPer === "week") S.tchWk = addDays(S.tchWk || mondayOf(today()), 7 * +tm.dataset.tchmon); else S.tchMon = addMon(S.tchMon || today().slice(0, 7), +tm.dataset.tchmon); render(); return true; }
+  const tpr = t.closest("[data-tchper]"); if (tpr) { S.tchPer = tpr.dataset.tchper; render(); return true; }
   const tp = t.closest("[data-tpage]"); if (tp) { const x = tch(tp.dataset.tpage); if (x) teacherPage(x); return true; }
   if (t.closest("[data-tacctnew]")) { tAcctBulk(); return true; }
   return false;
@@ -4391,6 +4406,7 @@ function tPortalClick(t) {
 Object.assign(ES, {"HSK 考生": "Candidatos HSK", "＋ 登记 HSK 考生": "＋ Nuevo candidato HSK", "没有在学校上课、只来考 HSK 的人。点名字打开资料，在“HSK 成绩”里记每次考试。他们不会出现在本地学生名单和“需要检查的学生”里。": "Personas que solo rinden el HSK con nosotros, sin estudiar en la escuela. Toca un nombre para abrir su ficha y registra cada examen en «Notas HSK». No aparecen en la lista de estudiantes locales ni en «Estudiantes por revisar».", "搜索姓名、学号、电话、证件号": "Buscar nombre, código, teléfono o C.I.", "考过的 HSK": "HSK rendidos", "最近考试": "Último examen", "还没有成绩": "Sin notas", "还没有 HSK 考生。点“＋ 登记 HSK 考生”添加。": "Aún no hay candidatos HSK. Pulsa «＋ Nuevo candidato HSK».", "HSK 考生（只考试）": "Candidato HSK (solo examen)"});
 Object.assign(ES, {"华裔网课": "Chino heredado en línea", "华裔网课学生": "Estudiantes en línea (chino heredado)", "＋ 登记网课学生": "＋ Nuevo estudiante en línea", "全部网课班": "Todos los grupos en línea", "网课班": "Grupo en línea", "班级总表里还没有华裔网课班": "Aún no hay grupos en línea en Grupos"});
 Object.assign(ES, {"我的教学": "Mi docencia", "我的考勤": "Mi asistencia", "不上课（不用选）": "No da clases (dejar vacío)", "这个人自己也上课的话，选上他是哪位老师：登录后会多一个“我的教学”，里面有他自己的课表、考勤、班级和学生。": "Si esta persona también da clases, elige qué profesor es: al entrar verá «Mi docencia» con su horario, asistencia, grupos y estudiantes."});
+Object.assign(ES, {"课时": "Horas de clase (45 min)", "按周": "Por semana", "按月": "Por mes", "上周": "Semana anterior", "下周": "Semana siguiente", "合计 {0} 节 · {1} 课时 · {2} 小时": "Total {0} clases · {1} horas de clase · {2} h", "这周还没有上过课": "Aún no hay clases esta semana", "只算到今天、没取消的课。每 45 分钟算 1 课时。代课算在实际上课的老师名下。点老师可以看每周上了哪些课。": "Solo clases hasta hoy y no canceladas. Cada 45 minutos cuentan como 1 hora de clase. Los reemplazos cuentan para quien dio la clase. Toca un profesor para ver sus clases por semana.", "每周课时": "Horas de clase por semana", "{0} 节 · {1} 课时": "{0} clases · {1} horas de clase", "本周（到今天）": "Esta semana (hasta hoy)", "时间": "Hora", "替 {0} 代课": "Reemplazo de {0}", "这周没有课": "Sin clases esta semana", "代课中": "Con reemplazo", "{0} 替 {1} 上这节课": "{0} reemplaza a {1} en esta clase", "取消代课": "Quitar reemplazo", "这节课改回 {0} 上？": "¿Volver a asignar esta clase a {0}?", "已改回原老师": "Devuelta al profesor original", "老师休假或上不了：选代课老师，课时算在代课老师名下": "Si el profesor está de licencia o no puede: elige un reemplazo; las horas cuentan para el reemplazo", "代课老师": "Profesor de reemplazo", "不代课（原老师上）": "Sin reemplazo (profesor original)", "代哪些课": "Qué clases", "只这一节": "Solo esta clase", "从这节到某一天": "Desde esta hasta una fecha", "这节和以后所有的课": "Esta y todas las siguientes", "代到哪天（包括这天）": "Hasta qué día (inclusive)", "请选代课到哪天": "Elige hasta qué día es el reemplazo", "已安排代课：这节和后面 {0} 节": "Reemplazo programado: esta clase y {0} más", "已安排代课": "Reemplazo programado"});
 Object.assign(ES, {"外聘": "Externo", "外聘老师": "Profesores externos"});
 Object.assign(ES, {"结束日期不能早于开始日期": "La fecha de fin no puede ser anterior a la de inicio"});
 Object.assign(ES, {"网络较慢，付款记录还在同步，现在看到的可能不完整。": "La conexión va lenta: los pagos aún se están sincronizando y la lista puede estar incompleta.", "首页": "Inicio", "教学安排": "Clases", "老师管理": "Profesores", "财务": "Finanzas", "行政": "Administración"});
@@ -4527,7 +4543,7 @@ const addMon = (m, n) => { const d = new Date(+m.slice(0, 4), +m.slice(5) - 1 + 
 // what a teacher taught in a month (or any date range), up to today: sessions, hours, covers for others, own sessions others covered
 function tStats(id, from, to) {
   const t = today(), end = to < t ? to : t, mine = CL().filter(c => c.date >= from && c.date <= end && c.teacherId === id);
-  return { n: mine.length, h: mine.reduce((s, c) => s + slotHrs(c.start, c.end), 0), sub: mine.filter(c => subOf(c)).length, att: mine.filter(c => !attMissing(c).length).length,
+  return { n: mine.length, h: mine.reduce((s, c) => s + slotHrs(c.start, c.end), 0), ks: mine.reduce((s, c) => s + ksOf(c), 0), sub: mine.filter(c => subOf(c)).length, att: mine.filter(c => !attMissing(c).length).length,
     lost: CL().filter(c => c.date >= from && c.date <= end && subOf(c) === id).length };
 }
 const monRange = m => [m + "-01", addDays(addMon(m, 1) + "-01", -1)];
@@ -4535,20 +4551,29 @@ const everTaught = (k, id) => k.teacherId === id || (k.tHist || []).some(h => h.
 const hName = h => tdisp(tch(h.teacherId)) || h.teacher || L("未定老师");
 
 function tchStatsPanel() {
-  const m = S.tchMon || today().slice(0, 7), [a, b] = monRange(m), old = S.since && a < S.since;
-  const rows = S.teachers.filter(x => !isExt(x)).sort(byName).map(x => ({ x, s: tStats(x.id, a, b) })).filter(r => r.s.n || r.s.lost || (tStatus(r.x) === "在职" && m === today().slice(0, 7)));
-  const tot = rows.reduce((t, r) => ({ n: t.n + r.s.n, h: t.h + r.s.h }), { n: 0, h: 0 });
+  const wk = S.tchPer === "week", m = S.tchMon || today().slice(0, 7), w0 = S.tchWk || mondayOf(today());
+  const [a, b] = wk ? [w0, addDays(w0, 6)] : monRange(m), old = S.since && a < S.since, cur = wk ? w0 === mondayOf(today()) : m === today().slice(0, 7);
+  const rows = S.teachers.filter(x => !isExt(x)).sort(byName).map(x => ({ x, s: tStats(x.id, a, b) })).filter(r => r.s.n || r.s.lost || (tStatus(r.x) === "在职" && cur));
+  const tot = rows.reduce((t, r) => ({ n: t.n + r.s.n, h: t.h + r.s.h, ks: t.ks + r.s.ks }), { n: 0, h: 0, ks: 0 });
   return `<section class="panel">
-    <div class="row"><h2>${L("上课统计")}</h2><div class="row" style="gap:4px"><button type="button" class="btn small" data-tchmon="-1" aria-label="${L("上个月")}">‹</button><b style="min-width:7.5em;text-align:center">${esc(monthLabel(m))}</b><button type="button" class="btn small" data-tchmon="1" aria-label="${L("下个月")}" ${m >= today().slice(0, 7) ? "disabled" : ""}>›</button></div>
-      <span class="muted">${esc(L("合计 {0} 节 · {1} 小时", tot.n, fmtH(tot.h)))}</span></div>
+    <div class="row"><h2>${L("上课统计")}</h2><span class="payseg" role="group"><button type="button" data-tchper="week" aria-pressed="${wk}">${L("按周")}</button><button type="button" data-tchper="month" aria-pressed="${!wk}">${L("按月")}</button></span>
+      <div class="row" style="gap:4px"><button type="button" class="btn small" data-tchmon="-1" aria-label="${L(wk ? "上周" : "上个月")}">‹</button><b style="min-width:7.5em;text-align:center">${esc(wk ? `${a.slice(5)} – ${b.slice(5)}` : monthLabel(m))}</b><button type="button" class="btn small" data-tchmon="1" aria-label="${L(wk ? "下周" : "下个月")}" ${cur ? "disabled" : ""}>›</button></div>
+      <span class="muted">${esc(L("合计 {0} 节 · {1} 课时 · {2} 小时", tot.n, fmtKs(tot.ks), fmtH(tot.h)))}</span></div>
     ${old ? `<p class="muted" style="margin:0;font-size:12.5px">${esc(L("系统只读最近 200 天的课，{0} 之前的不全。", S.since))}</p>` : ""}
-    ${rows.length ? `<div class="tablewrap"><table><thead><tr><th>${L("老师")}</th><th>${L("上了几节")}</th><th>${L("小时")}</th><th>${L("其中代课")}</th><th>${L("被别人代")}</th><th>${L("考勤完成")}</th></tr></thead><tbody>
-    ${rows.map(({ x, s }) => `<tr class="click" data-tpage="${x.id}"><td class="nm">${tdot(x.id)}<b>${esc(x.name || "")}</b> <span class="muted">${esc(x.nameEs || "")}</span></td><td><b>${s.n}</b></td><td>${fmtH(s.h)}</td><td>${s.sub || '<span class="muted">—</span>'}</td><td>${s.lost || '<span class="muted">—</span>'}</td><td>${s.n ? `${s.att} / ${s.n}` : '<span class="muted">—</span>'}</td></tr>`).join("")}
-    </tbody></table></div>` : `<div class="empty">${L("这个月还没有上过课")}</div>`}
-    <p class="muted" style="margin:0;font-size:12.5px">${L("只算到今天、没取消的课。代课算在实际上课的老师名下。")}</p>
+    ${rows.length ? `<div class="tablewrap"><table><thead><tr><th>${L("老师")}</th><th>${L("上了几节")}</th><th>${L("课时")}</th><th>${L("小时")}</th><th>${L("其中代课")}</th><th>${L("被别人代")}</th><th>${L("考勤完成")}</th></tr></thead><tbody>
+    ${rows.map(({ x, s }) => `<tr class="click" data-tpage="${x.id}"><td class="nm">${tdot(x.id)}<b>${esc(x.name || "")}</b> <span class="muted">${esc(x.nameEs || "")}</span></td><td><b>${s.n}</b></td><td><b>${fmtKs(s.ks)}</b></td><td>${fmtH(s.h)}</td><td>${s.sub || '<span class="muted">—</span>'}</td><td>${s.lost || '<span class="muted">—</span>'}</td><td>${s.n ? `${s.att} / ${s.n}` : '<span class="muted">—</span>'}</td></tr>`).join("")}
+    </tbody></table></div>` : `<div class="empty">${L(wk ? "这周还没有上过课" : "这个月还没有上过课")}</div>`}
+    <p class="muted" style="margin:0;font-size:12.5px">${L("只算到今天、没取消的课。每 45 分钟算 1 课时。代课算在实际上课的老师名下。点老师可以看每周上了哪些课。")}</p>
   </section>`;
 }
 
+// week by week: how many 课时 and exactly which sessions (newest week first, open by default)
+function weekKsHtml(id, n = 8) {
+  const t = today(), w0 = mondayOf(t);
+  const weeks = [...Array(n)].map((_, i) => addDays(w0, -7 * i)).filter(w => !S.since || addDays(w, 6) >= S.since).map(w => ({ w, cs: CL().filter(c => c.teacherId === id && c.date >= w && c.date <= addDays(w, 6) && c.date <= t).sort(byStart) }));
+  return `<h3>${L("每周课时")}</h3><div style="display:grid;gap:6px">${weeks.map(({ w, cs }, i) => `<details class="gsec"${i === 0 ? " open" : ""}><summary><b>${esc(`${w.slice(5)} – ${addDays(w, 6).slice(5)}`)}</b><span class="gcnt">${esc(L("{0} 节 · {1} 课时", cs.length, fmtKs(cs.reduce((s, c) => s + ksOf(c), 0))))}</span>${i === 0 ? `<span class="muted" style="font-size:12px">${L("本周（到今天）")}</span>` : ""}</summary>
+    <div class="gbody">${cs.length ? `<div class="tablewrap"><table class="gt"><thead><tr><th>${L("日期")}</th><th>${L("时间")}</th><th>${L("班级")}</th><th>${L("课时")}</th><th></th></tr></thead><tbody>${cs.map(c => `<tr class="click" data-cls="${esc(c.id)}"><td class="nm">${esc(wd(c.date))} ${esc(c.date.slice(5))}</td><td class="nm">${esc(c.start || "")}–${esc(c.end || "")}</td><td class="nm">${esc(cname(c) || L("课程"))}</td><td class="nm"><b>${fmtKs(ksOf(c))}</b></td><td class="nm">${subOf(c) ? `<span class="pill st-待排课">${esc(L("替 {0} 代课", tdisp(tch(subOf(c))) || "?"))}</span>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<span class="muted">${L("这周没有课")}</span>`}</div></details>`).join("")}</div>`;
+}
 // the teacher page's record: monthly counts, classes taught before, covers and teacher changes
 function tRecordHtml(x) {
   const t = today(), m0 = t.slice(0, 7), on = new Set(groupsOf(x.id).filter(g => g.on).map(g => g.courseId).filter(Boolean));
@@ -4561,9 +4586,10 @@ function tRecordHtml(x) {
   const rqs = S.requests.filter(r => r.teacherId === x.id).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 30);
   const chg = S.courses.flatMap(k => { const hs = (k.tHist || []).slice().sort((a, b) => a.until.localeCompare(b.until)); return hs.map((h, i) => ({ k, from: h.until, a: h, b: hs[i + 1] || { teacherId: k.teacherId, teacher: k.teacher } })).filter(r => r.a.teacherId === x.id || r.b.teacherId === x.id); }).sort((p, q) => q.from.localeCompare(p.from));
   return `<div class="panel"><h3>${L("上课记录")}</h3>
-    <div class="tablewrap"><table><thead><tr><th>${L("月份")}</th><th>${L("上了几节")}</th><th>${L("小时")}</th><th>${L("其中代课")}</th><th>${L("被别人代")}</th></tr></thead><tbody>
-    ${months.map(({ m, s }) => `<tr><td>${esc(monthLabel(m))}</td><td><b>${s.n}</b></td><td>${fmtH(s.h)}</td><td>${s.sub || '<span class="muted">—</span>'}</td><td>${s.lost || '<span class="muted">—</span>'}</td></tr>`).join("")}
+    <div class="tablewrap"><table><thead><tr><th>${L("月份")}</th><th>${L("上了几节")}</th><th>${L("课时")}</th><th>${L("小时")}</th><th>${L("其中代课")}</th><th>${L("被别人代")}</th></tr></thead><tbody>
+    ${months.map(({ m, s }) => `<tr><td>${esc(monthLabel(m))}</td><td><b>${s.n}</b></td><td><b>${fmtKs(s.ks)}</b></td><td>${fmtH(s.h)}</td><td>${s.sub || '<span class="muted">—</span>'}</td><td>${s.lost || '<span class="muted">—</span>'}</td></tr>`).join("")}
     </tbody></table></div>
+    ${weekKsHtml(x.id)}
     <h3>${L("带过的班")}</h3>
     ${pastK.length || pastG.length ? `<div class="tablewrap"><table><thead><tr><th>${L("班级")}</th><th>${L("带班时间")}</th><th>${L("学生")}</th></tr></thead><tbody>
       ${pastK.map(k => `<tr${gradeGroup(k.id + "_" + x.id) ? ` class="click" data-pgrade="${esc(k.id + "_" + x.id)}"` : ""}><td class="nm"><b>${esc(cname(k))}</b>${k.teacherId !== x.id ? ` <span class="pill st-试听">${esc(L("已换给 {0}", tdisp(tch(k.teacherId)) || k.teacher || L("未定老师")))}</span>` : ""}</td><td>${esc(span(k))}</td><td>${(k.studentIds || []).length}</td></tr>`).join("")}
@@ -4603,6 +4629,25 @@ function subForm(x) {
     try { for (const s of el.querySelectorAll("[data-subrow]")) { const c = CL().find(y => y.id === s.dataset.subrow); if (c && s.value !== c.teacherId) { await setSessTeacher(c, s.value); n++; } } closeSheet(); toast(n ? L("已安排 {0} 节代课", n) : L("没有改动")); }
     catch { btn.disabled = false; }
   });
+}
+// 代课中 inside a session's details: the office marks this session (and, if wanted, the class's later ones) as covered by another teacher
+const subMark = (orig, nt) => ({ teacherId: nt, subFor: orig, subBy: S.acct.id, subAt: new Date().toISOString() });
+function subBoxHtml(c, kc) {
+  const o = subOf(c);
+  if (o) return `<div class="banner row" style="margin:0;grid-column:1/-1"><span class="pill st-待排课">${L("代课中")}</span><span>${esc(L("{0} 替 {1} 上这节课", tdisp(tch(c.teacherId)) || "?", tdisp(tch(o)) || "?"))}</span>${c.subBy ? `<span class="muted" style="font-size:12px">${esc(byWho(c.subBy, c.subAt))}</span>` : ""}<span class="spacer"></span><button type="button" class="btn small" data-unsub>${L("取消代课")}</button></div>`;
+  const orig = c.teacherId, others = S.teachers.filter(t => t.id !== orig && tStatus(t) === "在职").sort(byName), grp = !!(kc || c.seriesId);
+  return `<div class="panel" style="grid-column:1/-1;display:grid;gap:8px"><div class="row" style="gap:8px"><b>${L("代课")}</b><span class="muted" style="font-size:12.5px">${L("老师休假或上不了：选代课老师，课时算在代课老师名下")}</span></div>
+    <div class="grid2"><label class="f">${L("代课老师")}<select name="subT"><option value="">${L("不代课（原老师上）")}</option>${others.map(t => `<option value="${t.id}">${esc(tboth(t))}</option>`).join("")}</select></label>
+    <div id="subscope" hidden><div style="display:grid;gap:8px"><label class="f">${L("代哪些课")}<select name="subScope"><option value="one">${L("只这一节")}</option>${grp ? `<option value="until">${L("从这节到某一天")}</option><option value="all">${L("这节和以后所有的课")}</option>` : ""}</select></label>
+    <label class="f" id="subuntil" hidden>${L("代到哪天（包括这天）")}<input name="subUntil" type="date" min="${esc(c.date)}"></label></div></div></div></div>`;
+}
+// the class's later sessions with the same planned teacher, from this one up to a day (or all)
+async function subMore(c, kc, nt, scope, until) {
+  if (scope === "one") return 0;
+  const orig = kc ? c._base.teacherId : c.teacherId;
+  const later = CL().filter(x => x.id !== c.id && x.date >= c.date && (scope === "all" || x.date <= until) && (kc ? x.courseId === c.courseId : x.seriesId && x.seriesId === c.seriesId) && x.teacherId === orig && !subOf(x));
+  for (const x of later) await setSessTeacher(x, nt);
+  return later.length;
 }
 // one session taught by someone else; picking the planned teacher again undoes the cover
 async function setSessTeacher(c, nt) {
