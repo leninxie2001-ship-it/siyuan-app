@@ -780,7 +780,7 @@ const alertRow = ({ s, lc, d }) => `
       <div class="alert">
         <div class="alhead"><span class="who" data-open="${s.id}">${esc(sname(s))}</span> ${pill(s.status || "上课中")}</div>
         <span class="why">${lc ? `${L("最近上课 {0}", lc)} · ${L("{0} 天没上课", d)}` : `${L("还没有上课记录")} · ${L("登记已 {0} 天", d)}`}${s.checkedAt ? ` · ${L("上次确认 {0}", s.checkedAt)}` : ""}</span>
-        <span class="alact">${STATUSES.map(x => `<button class="btn small ${(s.status || "上课中") === x ? "cur" : ""}" data-check="${s.id}" data-st="${x}" title="${esc((s.status || "上课中") === x ? L("状态不变，记为已确认") : "")}">${L(x)}</button>`).join("")}<button class="btn small primary" data-newcls="${s.id}">${L("排课")}</button></span>
+        <span class="alact">${STATUSES.map(x => `<button class="btn small ${(s.status || "上课中") === x ? "cur" : ""}" data-check="${s.id}" data-st="${x}" title="${esc((s.status || "上课中") === x ? L("状态不变，记为已确认") : "")}">${L(x)}</button>`).join("")}${s.huayi ? "" : `<button class="btn small" data-examonly="${s.id}" title="${esc(L("只来考 HSK，不在学校上课：转到 HSK 考生名单，不再提醒"))}">${L("只考 HSK")}</button>`}<button class="btn small primary" data-newcls="${s.id}">${L("排课")}</button></span>
       </div>`;
 function alerts() {
   const t = today(); const out = [];
@@ -3922,6 +3922,12 @@ function teacherForm(x) {
   });
 }
 
+// someone who only came for an HSK exam: move them to the HSK 考生 list, so they stop showing up as students to check
+async function setExamOnly(id) {
+  const s = stu(id); if (!s) return;
+  const d = { ...s, examOnly: true, checkedAt: today(), updatedAt: new Date().toISOString(), updatedBy: S.acct?.id || "" }; delete d.id;
+  await save("students", id, d); toast(L("已转到 HSK 考生：{0}", sname(s)));
+}
 async function setStatus(id, st) {
   const s = stu(id); if (!s) return;
   const d = { ...s, status: st, checkedAt: today() }; delete d.id;
@@ -4446,6 +4452,7 @@ Object.assign(ES, {"课时": "Horas de clase (45 min)", "按周": "Por semana", 
 Object.assign(ES, {"课时统计": "Horas de clase", "{0} 位老师 · {1} 节 · {2} 课时": "{0} profesores · {1} clases · {2} horas de clase", "每 45 分钟算 1 课时（40 分钟 = 0.9）。只算到今天、没取消的课；代课算在实际上课的老师名下。": "Cada 45 minutos es 1 hora de clase (40 min = 0,9). Solo clases hasta hoy y no canceladas; los reemplazos cuentan para quien dio la clase.", "{0} 小时": "{0} h", "其中代课 {0} 节": "{0} como reemplazo"});
 Object.assign(ES, {"{0} 课时": "{0} horas de clase"});
 Object.assign(ES, {"班级详情": "Detalle del grupo", "这个时间对应好几个班，点一个查看：": "Este horario corresponde a varios grupos; toca uno para verlo:", "班级总表里还没有这个班。建成班级以后，可以记人数、备注，也能在班级总表里看到。": "Este grupo aún no está en la lista de grupos. Al crearlo podrás anotar cantidad y notas, y aparecerá en la lista.", "＋ 建成班级": "＋ Crear grupo", "要改上课时间，请改老师的每周时间。": "Para cambiar el horario, edita el horario semanal del profesor."});
+Object.assign(ES, {"只考 HSK": "Solo HSK", "只来考 HSK，不在学校上课：转到 HSK 考生名单，不再提醒": "Solo vino a rendir el HSK, no estudia aquí: pasa a la lista de candidatos HSK y deja de aparecer", "已转到 HSK 考生：{0}": "Pasó a candidatos HSK: {0}"});
 Object.assign(ES, {"外聘": "Externo", "外聘老师": "Profesores externos"});
 Object.assign(ES, {"结束日期不能早于开始日期": "La fecha de fin no puede ser anterior a la de inicio"});
 Object.assign(ES, {"网络较慢，付款记录还在同步，现在看到的可能不完整。": "La conexión va lenta: los pagos aún se están sincronizando y la lista puede estar incompleta.", "首页": "Inicio", "教学安排": "Clases", "老师管理": "Profesores", "财务": "Finanzas", "行政": "Administración"});
@@ -4920,6 +4927,7 @@ document.addEventListener("click", e => {
   const dr = t.closest("[data-doc]"); if (dr) { docForm(S.docs.find(x => x.id === dr.dataset.doc)); return; }
   const it = t.closest("[data-item]"); if (it) { const x = itemOf(it.dataset.item); if (x) itemForm(x); return; }
   if (t.closest("[data-newitem]")) { itemForm(); return; }
+  const xo = t.closest("[data-examonly]"); if (xo) { xo.disabled = true; setExamOnly(xo.dataset.examonly).catch(() => { xo.disabled = false; }); return; }
   const chk = t.closest("[data-check]"); if (chk) { setStatus(chk.dataset.check, chk.dataset.st).catch(() => { }); return; }
   const op = t.closest("[data-open]"); if (op && !t.closest(".sheet")) { openStudent(op.dataset.open); return; }
   const nc = t.closest("[data-newcls]"); if (nc) { S.openId = null; classForm(null, nc.dataset.newcls || ""); return; }
