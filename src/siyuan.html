@@ -769,7 +769,7 @@ function slotOcc() {
   const cl = CL(); if (_occ && _occ.cl === cl && _occ.ss === S.slotsubs) return _occ.list;
   const from = S.since || addDays(today(), -200), to = addDays(today(), 120), dates = [], m = ssMap(), byTD = new Map(), list = [];
   for (let d = from; d <= to; d = addDays(d, 1)) if (!isOff(d)) dates.push([d, parseD(d).getDay()]);
-  for (const c of cl) if (c.teacherId && c.start && c.end) { const k = c.teacherId + "|" + c.date; if (!byTD.has(k)) byTD.set(k, []); byTD.get(k).push(c); }
+  for (const c of cl) if (c.start && c.end) for (const tid of new Set([c.teacherId, subOf(c)])) { if (!tid) continue; const k = tid + "|" + c.date; if (!byTD.has(k)) byTD.set(k, []); byTD.get(k).push(c); }
   for (const x of S.teachers) for (const sl of tSlots(x)) {
     if (!sl.start || !sl.end) continue;
     for (const [date, wd0] of dates) {
@@ -1572,7 +1572,10 @@ const ONLINE_RE = /网课|線上|线上|online|virtual|zoom/i;
 const slotLoc = s => s.locationId || (s.kind === "other" ? (S.locations.find(l => l.type === (ONLINE_RE.test(`${s.place || ""} ${s.grp || ""}`) ? "线上" : "本部"))?.id || "") : "");
 function tWeek(x, days, loc = "") {
   const cols = days.map(() => []), clash = [];
-  for (const c of CL()) if (c.teacherId === x.id && c.start && c.end && (!loc || c.locationId === loc)) { const i = days.indexOf(c.date); if (i >= 0) cols[i].push({ id: c.id, start: c.start, end: c.end, kind: "siyuan", place: cname(c), online: locOf(c.locationId)?.type === "线上" }); }
+  // a session somebody else covers stays in the planned teacher's row, struck through, like covered partner lessons
+  for (const c of CL()) { if (!c.start || !c.end || (loc && c.locationId !== loc)) continue; const i = days.indexOf(c.date); if (i < 0) continue; const o = subOf(c);
+    if (c.teacherId !== x.id && o !== x.id) continue;
+    cols[i].push({ id: c.id, start: c.start, end: c.end, kind: "siyuan", place: cname(c), online: locOf(c.locationId)?.type === "线上", ...(c.teacherId === x.id ? (o ? { subFor: o } : {}) : { coveredBy: c.teacherId }) }); }
   const sm = ssMap();
   for (const s of tSlots(x)) { if (loc && slotLoc(s) !== loc) continue; const i = (+s.d + 6) % 7; if (!cols[i].some(y => y.start <= s.start && y.end >= s.end && ((y.kind === "siyuan" && s.kind === "other") || (y.start === s.start && y.end === s.end)))) { const cv = sm.get(ssKey(days[i], x.id, s)); cols[i].push(cv ? { ...s, coveredBy: cv.subId } : s); } }
   // partner or other lessons this teacher covers for someone else that week
