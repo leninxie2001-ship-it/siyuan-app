@@ -929,7 +929,7 @@ function docForm(d) {
 }
 
 /* ---------- render ---------- */
-const TAB_GROUPS = [["首页", ["home"]], ["学生", ["students", "leads", "flyer"]], ["教学安排", ["schedule", "groups", "teachers", "tatt"]], ["老师管理", ["tch", "staff", "zoom"]], ["财务", ["payments", "receipts"]], ["行政", ["docs", "loans", "vault"]], ["我的教学", ["my", "att", "grades", "mystu", "borrow", "prof"]]];
+const TAB_GROUPS = [["首页", ["home"]], ["学生", ["students", "leads", "flyer"]], ["教学安排", ["schedule", "groups", "teachers", "tatt"]], ["老师管理", ["tch", "ks", "staff", "zoom"]], ["财务", ["payments", "receipts"]], ["行政", ["docs", "loans", "vault"]], ["我的教学", ["my", "att", "grades", "mystu", "borrow", "prof"]]];
 function renderChrome() {
   document.documentElement.lang = S.lang === "es" ? "es" : "zh-CN";
   // the timetable panel spreads wider than the page; the header above stays where it is on every tab
@@ -937,7 +937,7 @@ function renderChrome() {
   $("#brandname").textContent = L("思源中文学校");
   $("#brandsub").textContent = L("内部管理 · Uso interno");
   const n = alerts().filter(a => !a.paused).length;
-  const tabs = S.acct && isTch() ? [["my", "我的课表"], ["att", "考勤"], ["grades", "我的班级"], ["mystu", "我的学生"], ["zoom", "Zoom 使用"], ["borrow", "借物品"], ["prof", "我的资料"]] : S.acct ? [["home", "首页提醒"], ["students", "学生"], ["schedule", "课程安排"], ["tch", "教师"], ["teachers", "教师课表"], ["groups", "班级总表"], ["tatt", "老师考勤"], ["flyer", "开课信息"], ["leads", "意向登记"], ...(noPay() ? [] : [["payments", "付款记录"], ["receipts", "收据"]]), ["loans", "物品借用"], ["docs", "文件库"], ["staff", "老师和教学点"], ["zoom", "Zoom 使用"], ...(canVault() ? [["vault", "账号密码"]] : []), ...(hasMyT() ? MYT_TABS : [])] : [];
+  const tabs = S.acct && isTch() ? [["my", "我的课表"], ["att", "考勤"], ["grades", "我的班级"], ["mystu", "我的学生"], ["zoom", "Zoom 使用"], ["borrow", "借物品"], ["prof", "我的资料"]] : S.acct ? [["home", "首页提醒"], ["students", "学生"], ["schedule", "课程安排"], ["tch", "教师"], ["ks", "课时统计"], ["teachers", "教师课表"], ["groups", "班级总表"], ["tatt", "老师考勤"], ["flyer", "开课信息"], ["leads", "意向登记"], ...(noPay() ? [] : [["payments", "付款记录"], ["receipts", "收据"]]), ["loans", "物品借用"], ["docs", "文件库"], ["staff", "老师和教学点"], ["zoom", "Zoom 使用"], ...(canVault() ? [["vault", "账号密码"]] : []), ...(hasMyT() ? MYT_TABS : [])] : [];
   const cnt = k => k === "home" ? n : k === "docs" ? docsDue().length : k === "leads" ? leadDue().length : k === "loans" ? dueLoans().length + iqOpen().length : k === "borrow" ? myDueLoans().length : k === "att" && hasMyT() ? myAttTodo() : 0;
   const badge = x => x ? `<span class="count">${x}</span>` : "";
   const tabBtn = ([k, l]) => `<button data-tab="${k}" aria-current="${S.tab === k}">${L(l)}${badge(cnt(k))}</button>`;
@@ -1220,7 +1220,7 @@ function render() {
   const ro = S.readOnly ? `<div class="banner">${L("你目前是查看权限，只能看，不能修改。需要修改请让管理员把你设为编辑者。")}</div>` : "";
   if (isTch()) { m.innerHTML = ro + ({ my: viewMy, att: () => viewAtt(myTid()), grades: () => viewGradeList(myTid()), mystu: viewMyStudents, zoom: viewZoom, borrow: viewBorrow, prof: viewMyProfile }[S.tab] || viewMy)(); forcePw(); return; }
   const myT = hasMyT() ? { my: viewMy, att: () => viewAtt(myTid()), grades: () => viewGradeList(myTid()), mystu: viewMyStudents, borrow: viewBorrow, prof: viewMyProfile } : {};
-  m.innerHTML = ro + ({ ...myT, tch: viewTeachers, tatt: viewTAtt, home: viewHome, students: viewStudents, schedule: viewSchedule, teachers: viewTT, groups: viewGroups, loans: viewLoans, docs: viewDocs, flyer: viewFlyer, leads: viewLeads, payments: noPay() ? viewHome : viewPayments, receipts: noPay() ? viewHome : viewReceipts, staff: viewStaff, zoom: viewZoom, vault: () => canVault() ? viewVault() : viewHome() }[S.tab] || viewHome)();
+  m.innerHTML = ro + ({ ...myT, ks: viewKs, tch: viewTeachers, tatt: viewTAtt, home: viewHome, students: viewStudents, schedule: viewSchedule, teachers: viewTT, groups: viewGroups, loans: viewLoans, docs: viewDocs, flyer: viewFlyer, leads: viewLeads, payments: noPay() ? viewHome : viewPayments, receipts: noPay() ? viewHome : viewReceipts, staff: viewStaff, zoom: viewZoom, vault: () => canVault() ? viewVault() : viewHome() }[S.tab] || viewHome)();
   forcePw();
   if (S.tab === "students") { const i = $("#q"); if (i && S._focusQ) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } S._focusQ = false; }
 }
@@ -4396,7 +4396,7 @@ function tPortalClick(t) {
   if (t.closest("[data-tnewcls]")) { classForm(); return true; }
   if (t.closest("[data-rqcancel],[data-rqsub],[data-rqno],[data-rqmove]")) { rqClick(t); return true; }
   const ts2 = t.closest("[data-tchst]"); if (ts2) { S.tchSt = ts2.dataset.tchst; render(); return true; }
-  const tm = t.closest("[data-tchmon]"); if (tm) { if (S.tchPer === "week") S.tchWk = addDays(S.tchWk || mondayOf(today()), 7 * +tm.dataset.tchmon); else S.tchMon = addMon(S.tchMon || today().slice(0, 7), +tm.dataset.tchmon); render(); return true; }
+  const tm = t.closest("[data-tchmon]"); if (tm) { if ((S.tchPer || "week") === "week") S.tchWk = addDays(S.tchWk || mondayOf(today()), 7 * +tm.dataset.tchmon); else S.tchMon = addMon(S.tchMon || today().slice(0, 7), +tm.dataset.tchmon); render(); return true; }
   const tpr = t.closest("[data-tchper]"); if (tpr) { S.tchPer = tpr.dataset.tchper; render(); return true; }
   const tp = t.closest("[data-tpage]"); if (tp) { const x = tch(tp.dataset.tpage); if (x) teacherPage(x); return true; }
   if (t.closest("[data-tacctnew]")) { tAcctBulk(); return true; }
@@ -4407,6 +4407,7 @@ Object.assign(ES, {"HSK 考生": "Candidatos HSK", "＋ 登记 HSK 考生": "＋
 Object.assign(ES, {"华裔网课": "Chino heredado en línea", "华裔网课学生": "Estudiantes en línea (chino heredado)", "＋ 登记网课学生": "＋ Nuevo estudiante en línea", "全部网课班": "Todos los grupos en línea", "网课班": "Grupo en línea", "班级总表里还没有华裔网课班": "Aún no hay grupos en línea en Grupos"});
 Object.assign(ES, {"我的教学": "Mi docencia", "我的考勤": "Mi asistencia", "不上课（不用选）": "No da clases (dejar vacío)", "这个人自己也上课的话，选上他是哪位老师：登录后会多一个“我的教学”，里面有他自己的课表、考勤、班级和学生。": "Si esta persona también da clases, elige qué profesor es: al entrar verá «Mi docencia» con su horario, asistencia, grupos y estudiantes."});
 Object.assign(ES, {"课时": "Horas de clase (45 min)", "按周": "Por semana", "按月": "Por mes", "上周": "Semana anterior", "下周": "Semana siguiente", "合计 {0} 节 · {1} 课时 · {2} 小时": "Total {0} clases · {1} horas de clase · {2} h", "这周还没有上过课": "Aún no hay clases esta semana", "只算到今天、没取消的课。每 45 分钟算 1 课时。代课算在实际上课的老师名下。点老师可以看每周上了哪些课。": "Solo clases hasta hoy y no canceladas. Cada 45 minutos cuentan como 1 hora de clase. Los reemplazos cuentan para quien dio la clase. Toca un profesor para ver sus clases por semana.", "每周课时": "Horas de clase por semana", "{0} 节 · {1} 课时": "{0} clases · {1} horas de clase", "本周（到今天）": "Esta semana (hasta hoy)", "时间": "Hora", "替 {0} 代课": "Reemplazo de {0}", "这周没有课": "Sin clases esta semana", "代课中": "Con reemplazo", "{0} 替 {1} 上这节课": "{0} reemplaza a {1} en esta clase", "取消代课": "Quitar reemplazo", "这节课改回 {0} 上？": "¿Volver a asignar esta clase a {0}?", "已改回原老师": "Devuelta al profesor original", "老师休假或上不了：选代课老师，课时算在代课老师名下": "Si el profesor está de licencia o no puede: elige un reemplazo; las horas cuentan para el reemplazo", "代课老师": "Profesor de reemplazo", "不代课（原老师上）": "Sin reemplazo (profesor original)", "代哪些课": "Qué clases", "只这一节": "Solo esta clase", "从这节到某一天": "Desde esta hasta una fecha", "这节和以后所有的课": "Esta y todas las siguientes", "代到哪天（包括这天）": "Hasta qué día (inclusive)", "请选代课到哪天": "Elige hasta qué día es el reemplazo", "已安排代课：这节和后面 {0} 节": "Reemplazo programado: esta clase y {0} más", "已安排代课": "Reemplazo programado"});
+Object.assign(ES, {"课时统计": "Horas de clase", "{0} 位老师 · {1} 节 · {2} 课时": "{0} profesores · {1} clases · {2} horas de clase", "每 45 分钟算 1 课时（40 分钟 = 0.9）。只算到今天、没取消的课；代课算在实际上课的老师名下。": "Cada 45 minutos es 1 hora de clase (40 min = 0,9). Solo clases hasta hoy y no canceladas; los reemplazos cuentan para quien dio la clase.", "{0} 小时": "{0} h", "其中代课 {0} 节": "{0} como reemplazo"});
 Object.assign(ES, {"外聘": "Externo", "外聘老师": "Profesores externos"});
 Object.assign(ES, {"结束日期不能早于开始日期": "La fecha de fin no puede ser anterior a la de inicio"});
 Object.assign(ES, {"网络较慢，付款记录还在同步，现在看到的可能不完整。": "La conexión va lenta: los pagos aún se están sincronizando y la lista puede estar incompleta.", "首页": "Inicio", "教学安排": "Clases", "老师管理": "Profesores", "财务": "Finanzas", "行政": "Administración"});
@@ -4551,7 +4552,7 @@ const everTaught = (k, id) => k.teacherId === id || (k.tHist || []).some(h => h.
 const hName = h => tdisp(tch(h.teacherId)) || h.teacher || L("未定老师");
 
 function tchStatsPanel() {
-  const wk = S.tchPer === "week", m = S.tchMon || today().slice(0, 7), w0 = S.tchWk || mondayOf(today());
+  const wk = (S.tchPer || "week") === "week", m = S.tchMon || today().slice(0, 7), w0 = S.tchWk || mondayOf(today());
   const [a, b] = wk ? [w0, addDays(w0, 6)] : monRange(m), old = S.since && a < S.since, cur = wk ? w0 === mondayOf(today()) : m === today().slice(0, 7);
   const rows = S.teachers.filter(x => !isExt(x)).sort(byName).map(x => ({ x, s: tStats(x.id, a, b) })).filter(r => r.s.n || r.s.lost || (tStatus(r.x) === "在职" && cur));
   const tot = rows.reduce((t, r) => ({ n: t.n + r.s.n, h: t.h + r.s.h, ks: t.ks + r.s.ks }), { n: 0, h: 0, ks: 0 });
@@ -4567,6 +4568,21 @@ function tchStatsPanel() {
   </section>`;
 }
 
+// 课时统计 page (office only): the chosen week or month, every teacher's 课时 with the sessions listed right under them
+function viewKs() {
+  const wk = (S.tchPer || "week") === "week", m = S.tchMon || today().slice(0, 7), w0 = S.tchWk || mondayOf(today()), t = today();
+  const [a, b] = wk ? [w0, addDays(w0, 6)] : monRange(m), cur = wk ? w0 === mondayOf(t) : m === t.slice(0, 7), end = b < t ? b : t;
+  const rows = S.teachers.filter(x => !isExt(x)).sort(byName).map(x => { const cs = CL().filter(c => c.teacherId === x.id && c.date >= a && c.date <= end).sort(byStart); return { x, cs, ks: cs.reduce((s, c) => s + ksOf(c), 0), h: cs.reduce((s, c) => s + slotHrs(c.start, c.end), 0) }; }).filter(r => r.cs.length);
+  const tot = rows.reduce((s, r) => ({ n: s.n + r.cs.length, ks: s.ks + r.ks }), { n: 0, ks: 0 });
+  return `<section class="panel">
+    <div class="row"><h2>${L("课时统计")}</h2><span class="payseg" role="group"><button type="button" data-tchper="week" aria-pressed="${wk}">${L("按周")}</button><button type="button" data-tchper="month" aria-pressed="${!wk}">${L("按月")}</button></span>
+      <div class="row" style="gap:4px"><button type="button" class="btn small" data-tchmon="-1" aria-label="${L(wk ? "上周" : "上个月")}">‹</button><b style="min-width:7.5em;text-align:center">${esc(wk ? `${a.slice(5)} – ${b.slice(5)}` : monthLabel(m))}</b><button type="button" class="btn small" data-tchmon="1" aria-label="${L(wk ? "下周" : "下个月")}" ${cur ? "disabled" : ""}>›</button></div>
+      <span class="muted">${esc(L("{0} 位老师 · {1} 节 · {2} 课时", rows.length, tot.n, fmtKs(tot.ks)))}</span></div>
+    <p class="muted" style="margin:0;font-size:12.5px">${L("每 45 分钟算 1 课时（40 分钟 = 0.9）。只算到今天、没取消的课；代课算在实际上课的老师名下。")}${S.since && a < S.since ? " " + esc(L("系统只读最近 200 天的课，{0} 之前的不全。", S.since)) : ""}</p>
+  </section>
+  ${rows.length ? rows.map(({ x, cs, ks, h }) => { const sub = cs.filter(c => subOf(c)).length; return `<details class="gsec top" open><summary>${tdot(x.id)}<b>${esc(x.name || "")}</b><span class="muted">${esc(x.nameEs || "")}</span><span class="gcnt">${esc(L("{0} 节 · {1} 课时", cs.length, fmtKs(ks)))}</span><span class="muted" style="font-size:12.5px">${esc(L("{0} 小时", fmtH(h)))}${sub ? " · " + esc(L("其中代课 {0} 节", sub)) : ""}</span></summary>
+    <div class="gbody"><div class="tablewrap"><table class="gt"><thead><tr><th>${L("日期")}</th><th>${L("时间")}</th><th>${L("班级")}</th><th>${L("课时")}</th><th></th></tr></thead><tbody>${cs.map(c => `<tr class="click" data-cls="${esc(c.id)}"><td class="nm">${esc(wd(c.date))} ${esc(c.date.slice(5))}</td><td class="nm">${esc(c.start || "")}–${esc(c.end || "")}</td><td class="nm">${esc(cname(c) || L("课程"))}</td><td class="nm"><b>${fmtKs(ksOf(c))}</b></td><td class="nm">${subOf(c) ? `<span class="pill st-待排课">${esc(L("替 {0} 代课", tdisp(tch(subOf(c))) || "?"))}</span>` : ""}</td></tr>`).join("")}</tbody></table></div></div></details>`; }).join("") : `<div class="empty">${L(wk ? "这周还没有上过课" : "这个月还没有上过课")}</div>`}`;
+}
 // week by week: how many 课时 and exactly which sessions (newest week first, open by default)
 function weekKsHtml(id, n = 8) {
   const t = today(), w0 = mondayOf(t);
