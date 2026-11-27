@@ -48,6 +48,7 @@ service cloud.firestore {
       allow update: if mine() && resource.data.status == 'open' && request.resource.data.status == 'withdrawn' && onlyChanges(['status', 'updatedAt']);
     }
     // a teacher asks to borrow school items (how many, from and until when); the office approves it, which records the loan, or says no
+    match /slotsubs/{id} { allow read: if isTeacher() && (resource.data.tid == tid() || resource.data.subId == tid()); }
     match /itemreqs/{id} {
       allow read: if mine();
       allow create: if staysMine() && request.resource.data.createdBy == request.auth.token.uname && request.resource.data.status == 'open'
