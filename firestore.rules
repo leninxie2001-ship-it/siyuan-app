@@ -68,7 +68,10 @@ service cloud.firestore {
     match /classes/{id} {
       allow create: if makingMine() && request.resource.data.get('courseId', '') == '';
       allow update, delete: if mine() && madeByMe() && (request.method == 'delete' || makingMine());
-      allow update: if isTeacher() && onlyChanges(['studentIds', 'updatedAt', 'updatedBy'])
+      // a drop-in student for one session of the teacher's own course
+      allow create: if isTeacher() && request.resource.data.get('courseId', '') != '' && get(/databases/$(database)/documents/courses/$(request.resource.data.courseId)).data.get('teacherId', '') == tid()
+        && request.resource.data.keys().hasOnly(['courseId', 'date', 'studentIds', 'guests', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+      allow update: if isTeacher() && onlyChanges(['studentIds', 'guests', 'updatedAt', 'updatedBy'])
         && (resource.data.get('teacherId', '') == tid() || (resource.data.get('courseId', '') != '' && get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data.get('teacherId', '') == tid()));
     }
     match /zoom/{id} {
