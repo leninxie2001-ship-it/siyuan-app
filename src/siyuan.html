@@ -1423,6 +1423,14 @@ function courseView(k) {
   // only the chosen day is shown, so a long class does not stretch the page
   el.querySelector("#ksday")?.addEventListener("change", e => { const c = past.find(x => x.id === e.target.value); el.querySelector("#ksone").innerHTML = c ? sessHtml(c) : ""; });
 }
+// keep the 班级总表 row of a class in step with it: same teacher; the next level takes over the row; a new online 华裔 class gets a row
+async function kGroupSync(id, d, prevId) {
+  const now = new Date().toISOString(), by = S.acct?.id || "", hyName = () => { const g = d.level.replace(/^华裔\s*/, ""); return `${g}${/[上下]$/.test(g) ? "册" : ""} ${(d.title || "").replace(/^网课\s*/, "")}`.trim(); };
+  let gs = S.groups.filter(g => g.courseId === id);
+  if (prevId && !gs.length) for (const g of S.groups.filter(g => g.courseId === prevId)) { const { id: gid, ...gr } = g; await save("groups", gid, { ...gr, courseId: id, teacherId: d.teacherId || "", name: /华裔/.test(d.level || "") ? hyName() : gr.name, updatedAt: now, updatedBy: by }); gs = [1]; }
+  for (const g of gs) if (g.id && (g.teacherId || "") !== (d.teacherId || "")) { const { id: gid, ...gr } = g; await save("groups", gid, { ...gr, teacherId: d.teacherId || "", updatedAt: now, updatedBy: by }); }
+  if (!gs.length && /^华裔/.test(d.level || "") && locOf(d.locationId)?.type === "线上") await save("groups", newId("groups"), { locationId: "", program: "华裔网课", section: "华裔语文", name: hyName(), teacherId: d.teacherId || "", size: null, note: "", courseId: id, createdAt: now, createdBy: by, updatedAt: now, updatedBy: by });
+}
 function courseForm(k, preset) {
   const isNew = !k; k = k || preset || { start: today(), slots: [], studentIds: [], locationId: S.loc || "", teacherId: S.tchF || "" };
   // a weekday can have a second period, e.g. morning and afternoon with lunch in between
@@ -1497,6 +1505,7 @@ function courseForm(k, preset) {
     const id = k.id || newId("courses"); delete d.id;
     try {
       await save("courses", id, d);
+      await kGroupSync(id, d, isNew ? k.prevId : "");
       if (isNew && k.prevId) {
         // close the previous level the day before this one starts, and move its students up a level
         const prev = S.courses.find(x => x.id === k.prevId);
@@ -1604,7 +1613,7 @@ const ttOrder = (a, b) => (a.ord ?? 999) - (b.ord ?? 999) || byName(a, b);
 function ttData() {
   if (!S.weekStart) S.weekStart = mondayOf(today());
   const days = [...Array(7)].map((_, i) => addDays(S.weekStart, i));
-  const all = S.teachers.filter(x => x.active !== false && !isExt(x)).sort(ttOrder).map(x => { const w = tWeek(x, days, S.loc); return { x, w, det: tDetails(x, w) }; });
+  const all = S.teachers.filter(x => x.active !== false && isExt(x) === !!S.ttExt).sort(ttOrder).map(x => { const w = tWeek(x, days, S.loc); return { x, w, det: tDetails(x, w) }; });
   // with a teaching site picked, only the teachers who teach there this week
   const rows = all.filter(r => S.loc ? r.w.any : r.x.ord != null || r.w.any || r.x.courseNote);
   return { days, rows, rest: S.loc ? [] : all.filter(r => !rows.includes(r)) };
@@ -1618,7 +1627,7 @@ const detText = r => [...r.det.map(e => [e.place || L(TSK[e.kind] || "其他课�
 function viewTT() {
   const { days, rows, rest } = ttData(), t = today();
   return `<section class="panel">
-    <div class="row"><h2>${L("思源教师课程统计表")}</h2><span class="muted">${L("{0} 至 {1}", days[0], days[6])} · ${L("{0} 位老师", rows.length)}${S.loc && locOf(S.loc) ? ` · ${esc(lname(locOf(S.loc)))}` : ""}</span><span class="spacer"></span>
+    <div class="row"><h2>${L(S.ttExt ? "外聘老师课程表" : "思源教师课程统计表")}</h2><span class="row" style="gap:0"><button class="btn small ${S.ttExt ? "" : "primary"}" data-ttext="0">${L("思源老师")}</button><button class="btn small ${S.ttExt ? "primary" : ""}" data-ttext="1">${L("外聘老师")}</button></span><span class="muted">${L("{0} 至 {1}", days[0], days[6])} · ${L("{0} 位老师", rows.length)}${S.loc && locOf(S.loc) ? ` · ${esc(lname(locOf(S.loc)))}` : ""}</span><span class="spacer"></span>
       <button class="btn" data-week="-7">${L("‹ 上周")}</button><button class="btn" data-week="0">${L("本周")}</button><button class="btn" data-week="7">${L("下周 ›")}</button>
       <button class="btn" data-act="ttcsv">${L("导出 Excel")}</button><button class="btn" data-act="ttpdf">${L("下载 PDF")}</button></div>
     <div class="row tlegend">${[["siyuan", "思源的课（自动）"], ["partner", "合作学校"], ["other", "其他课程"]].map(([k, l]) => `<span class="ts ts-${k}">${L(l)}</span>`).join("")}<span class="muted" style="font-size:12.5px">${L("点老师那一行就能改时间和课程详情。思源的课从“课程安排”自动算，课程改了这里会跟着变。")}</span></div>
@@ -1752,7 +1761,7 @@ function viewGroups() {
   const progHtml = p => {
     const gs = S.groups.filter(g => !g.locationId && (g.program || "") === p).sort(byGroup);
     const sl = active.map(t => ({ t, sl: tSlots(t).filter(s => s.kind === "other" && s.place === p && !s.locationId) })).filter(x => x.sl.length && p);
-    return det(`prog:${p}`, `<b>${esc(p || L("未分类"))}</b>${cnt(gs.length, "{0} 个班")}${sl.length ? cnt(sl.length, "{0} 位老师") : ""}`, `${tchLine(sl)}${gs.length ? gTable(gs) : ""}<div><button class="btn small" data-newgroup="prog:${esc(p)}">${L("＋ 添加班级")}</button></div>`, "sub");
+    return det(`prog:${p}`, `<b>${esc(p || L("未分类"))}</b>${cnt(gs.length, "{0} 个班")}${sl.length ? cnt(sl.length, "{0} 位老师") : ""}`, `${tchLine(sl)}${gs.length ? gTable(gs) : ""}<div class="row" style="gap:6px"><button class="btn small" data-newgroup="prog:${esc(p)}">${L("＋ 添加班级")}</button>${gs.some(g => !g.courseId) && p ? `<button class="btn small primary" data-gconv="${esc(p)}">${esc(L("转成系统里的班（{0} 个）", gs.filter(g => !g.courseId).length))}</button>` : ""}</div>`, "sub");
   };
   const nSite = sites.reduce((a, l) => a + S.groups.filter(g => g.locationId === l.id).length, 0), nOther = S.groups.filter(g => !g.locationId).length;
   return `<section class="panel">
@@ -1863,6 +1872,26 @@ async function gSync(old, ng, times) {
   }
   for (const [tid, arr] of byT) { const t = tch(tid); if (!t) continue; const { id, ...rest } = t; await save("teachers", tid, { ...rest, tslots: arr.sort(bySlot), updatedAt: now }); }
 }
+// A group in 华裔网课 (or any class kept only in 班级总表) becomes a real course: students, teacher and the times written in
+// the teacher's week move into it, so attendance, grades, the timetable and covers work like any Siyuan class.
+const gGrade = n => { const m = String(n || "").trim().match(/^(.*?[上下])册?\s*(.*)$/); return m ? { grade: m[1].trim(), rest: m[2].trim() } : { grade: String(n || "").trim(), rest: "" }; };
+const isOnlineProg = p => ONLINE_RE.test(p || "");
+async function gToCourse(gs) {
+  const vl = S.locations.find(l => l.type === "线上")?.id || "", now = new Date().toISOString(), by = S.acct?.id || "", plans = [], drop = new Map();
+  // the term ends with the in-person 华裔 classes
+  const end = S.courses.filter(k => /^华裔/.test(k.level || "") && k.end > today()).map(k => k.end).sort().pop() || "";
+  // work everything out first: saving makes the snapshots replace the arrays the slots are found in
+  for (const g of gs) { if (g.courseId) continue;
+    const own = gLinked(g).filter(o => !o.shared), { grade, rest } = gGrade(g.name), on = isOnlineProg(g.program);
+    const slots = own.length ? gTimesOf(own) : (g.times || []).map(x => ({ d: +x.d, start: x.start, end: x.end }));
+    plans.push({ g, id: newId("courses"), k: { level: /华裔/.test(g.program || "") ? `华裔 ${grade}` : grade, title: [on ? "网课" : g.program, rest].filter(Boolean).join(" "), teacherId: g.teacherId || "", teacher: "", locationId: on ? vl : "", start: today(), end, slots, skip: [], extra: [], hours: null, studentIds: gOnStu(g).map(x => x.id), note: g.note || "", fromGroup: g.id, createdAt: now, createdBy: by } });
+    for (const o of own) { if (!drop.has(o.tid)) drop.set(o.tid, new Set()); drop.get(o.tid).add(o.s); }
+  }
+  const keep = [...drop].map(([tid, set]) => [tid, tSlots(tch(tid)).filter(s => !set.has(s))]);
+  for (const { g, id, k } of plans) { await save("courses", id, k); const { id: _, ...gr } = g; await save("groups", g.id, { ...gr, courseId: id, updatedAt: now, updatedBy: by }); }
+  for (const [tid, slots] of keep) { const { id, ...rest } = tch(tid); await save("teachers", tid, { ...rest, tslots: slots, updatedAt: now }); }
+  return plans.length;
+}
 // "HSK5 网课" -> "HSK6 网课", "Nivel 2" -> "Nivel 3", "五年级上" -> "五年级下"
 function nextName(n) {
   if (/上/.test(n) && /年级|册/.test(n)) return n.replace(/上(册)?/, "下$1");
@@ -1899,8 +1928,9 @@ function groupForm(g, preset = "") {
     <div class="panel" id="gtimes" ${g.courseId ? "hidden" : ""}><h3>${L("每周上课时间")}</h3><div id="gtrows" style="display:grid;gap:6px">${t0.map(gtRow).join("")}</div>
       <div class="row" style="margin-top:6px"><button type="button" class="btn small" data-addgt>${L("＋ 添加时间")}</button></div>
       <p class="muted" style="margin:6px 0 0;font-size:12.5px">${L("老师的课表跟着这个班走：改了时间、老师、名称，或者删除这个班，保存后老师课表里也会一起改。")}</p></div>
-    ${isNew ? "" : `<div class="row"><span class="spacer"></span><button type="button" class="btn small danger" data-del>${L("删除这个班级")}</button></div>`}
+    ${isNew ? "" : `<div class="row">${!g.courseId && !g.locationId ? `<button type="button" class="btn small" data-gconv1>${L("转成系统里的班")}</button><span class="muted" style="font-size:12.5px">${L("转了以后考勤、成绩、课表、代课都和思源的班一样")}</span>` : ""}<span class="spacer"></span><button type="button" class="btn small danger" data-del>${L("删除这个班级")}</button></div>`}
   </form>`, true);
+  el.querySelector("[data-gconv1]")?.addEventListener("click", () => confirmBox(L("转成系统里的班"), L("把“{0}”转成系统里的班？老师、学生、上课时间都带过去。没保存的修改请先保存。", g.name), async () => { await gToCourse([S.groups.find(y => y.id === g.id) || g]); closeSheet(); toast(L("已转好 {0} 个班", 1)); }));
   const form = $("#grpform", el), F = n => form.querySelector(`[name=${n}]`), sync = () => { $("#progf", el).hidden = !!F("locationId").value; };
   sync(); F("locationId").addEventListener("change", sync);
   F("courseId").addEventListener("change", () => { $("#gtimes", el).hidden = !!F("courseId").value; });
@@ -4599,6 +4629,7 @@ Object.assign(ES, {"只考 HSK": "Solo HSK", "只来考 HSK，不在学校上课
 Object.assign(ES, {"老师请假：勾选要代的课（可以多选，思源的课和其他教学点的课都在这里），选代课老师": "Profesor ausente: marca las clases a reemplazar (varias a la vez, de Siyuan y de otros sitios) y elige el reemplazo", "已结课": "Grupo terminado", "这个班上完了：结课，或者继续上下一级": "El grupo terminó: cerrarlo o seguir al siguiente nivel", "结课：从课表里去掉": "Cerrar: quitar del horario", "去掉 {0} 每周时间里的“{1}”": "Quita «{1}» del horario semanal de {0}", "继续上下一级，新名称": "Seguir al siguiente nivel, nombre nuevo", "改成下一级": "Pasar al siguiente nivel", "下一级沿用同样的时间；时间不一样的话，改完再到老师的每周时间里调。": "El siguiente nivel mantiene el horario; si cambia, ajústalo luego en el horario semanal del profesor.", "全选": "Todas", "全不选": "Ninguna", "只选这个班": "Solo este grupo", "由 {0} 代课": "Reemplazo: {0}", "选“原老师”再保存，就是取消代课。": "Elige al profesor original y guarda para quitar el reemplazo.", "保存代课": "Guardar reemplazo", "这段时间没有课": "No hay clases en estas fechas", "请先勾选要代的课": "Marca primero las clases", "已取消 {0} 节代课": "{0} reemplazos quitados", "结课": "Cerrar grupo", "从 {0} 的每周时间里去掉“{1}”？班级总表里的班不会删除，以前的课时记录也会保留。": "¿Quitar «{1}» del horario semanal de {0}? El grupo en la lista no se borra y las horas pasadas se conservan.", "已结课：{0}": "Cerrado: {0}", "请填写新名称": "Escribe el nombre nuevo", "已改成：{0}": "Cambiado a: {0}", "每 45 分钟算 1 课时（40 分钟 = 0.9）。包括思源的课和合作学校、其他课程的时间；只算到今天，节假日和取消的课不算；代课算在实际上课的老师名下。": "Cada 45 minutos es 1 hora de clase (40 min = 0,9). Incluye clases de Siyuan, colegios aliados y otros cursos; solo hasta hoy, sin feriados ni clases canceladas; los reemplazos cuentan para quien dio la clase."});
 Object.assign(ES, {"不用考勤": "Sin asistencia", "这个班要考勤": "Este grupo lleva asistencia", "不勾的话，老师不用给这个班拍照点到，也不会提醒没填考勤。": "Si no se marca, el profesor no toma fotos ni pasa lista en este grupo, y no habrá avisos de asistencia pendiente."});
 Object.assign(ES, {"老师的课表跟着这个班走：改了时间、老师、名称，或者删除这个班，保存后老师课表里也会一起改。": "El horario del profesor sigue a este grupo: si cambias el horario, el profesor o el nombre, o eliminas el grupo, al guardar también cambia en su horario.", "删除班级“{0}”？老师课表里这个班的时间也会去掉。": "¿Eliminar el grupo «{0}»? También se quitará su horario del profesor.", "{0} 由 {1} 代课": "{0} la da {1}"});
+Object.assign(ES, {"外聘老师课程表": "Horario de docentes externos", "思源老师": "Docentes Siyuan", "转成系统里的班": "Convertir en grupo del sistema", "转成系统里的班（{0} 个）": "Convertir en grupos del sistema ({0})", "把“{0}”的 {1} 个班转成系统里的班：老师、学生、上课时间都带过去，以后考勤、成绩、课表、代课都和思源的班一样。": "Convertir los {1} grupos de «{0}» en grupos del sistema: pasan el profesor, los estudiantes y el horario, y desde ahí la asistencia, las notas, el horario y los reemplazos funcionan como en cualquier grupo de Siyuan.", "已转好 {0} 个班": "{0} grupos convertidos", "转了以后考勤、成绩、课表、代课都和思源的班一样": "Después, la asistencia, las notas, el horario y los reemplazos funcionan como en los grupos de Siyuan", "把“{0}”转成系统里的班？老师、学生、上课时间都带过去。没保存的修改请先保存。": "¿Convertir «{0}» en grupo del sistema? Pasan el profesor, los estudiantes y el horario. Guarda antes los cambios pendientes."});
 Object.assign(ES, {"外聘": "Externo", "外聘老师": "Profesores externos"});
 Object.assign(ES, {"结束日期不能早于开始日期": "La fecha de fin no puede ser anterior a la de inicio"});
 Object.assign(ES, {"网络较慢，付款记录还在同步，现在看到的可能不完整。": "La conexión va lenta: los pagos aún se están sincronizando y la lista puede estar incompleta.", "首页": "Inicio", "教学安排": "Clases", "老师管理": "Profesores", "财务": "Finanzas", "行政": "Administración"});
@@ -5084,6 +5115,8 @@ document.addEventListener("click", e => {
   const lp = t.closest("[data-locpay]"); if (lp) { S.openId = null; paymentForm(null, "", null, lp.dataset.locpay, lp.dataset.m); return; }
   const py = t.closest("[data-pay]"); if (py) { const p = S.payments.find(x => x.id === py.dataset.pay); S.openId = null; if (p) paymentForm(p); return; }
   if (t.closest("[data-more]")) { S.rn = (S.rn || 60) + 60; render(); return; }
+  const tex = t.closest("[data-ttext]"); if (tex) { S.ttExt = tex.dataset.ttext === "1"; render(); return; }
+  const gc = t.closest("[data-gconv]"); if (gc) { const p = gc.dataset.gconv, gs = S.groups.filter(g => !g.locationId && !g.courseId && (g.program || "") === p); confirmBox(L("转成系统里的班"), L("把“{0}”的 {1} 个班转成系统里的班：老师、学生、上课时间都带过去，以后考勤、成绩、课表、代课都和思源的班一样。", p, gs.length), async () => { const n = await gToCourse(gs); toast(L("已转好 {0} 个班", n)); }); return; }
   const wk = t.closest("[data-week]"); if (wk) { const n = +wk.dataset.week; S.weekStart = n ? addDays(S.weekStart, n) : mondayOf(today()); render(); return; }
   const ho = t.closest("[data-holopen]"); if (ho) { const d = ho.dataset.holopen, a = autoHolidays(+d.slice(0, 4)).find(x => x.date === d); save("holidays", newId("holidays"), { from: d, to: d, name: a ? L(a.zh) : "", open: true }).then(() => toast(L("已保存"))).catch(() => { }); return; }
   const hd = t.closest("[data-holdel]"); if (hd) { remove("holidays", hd.dataset.holdel).then(() => toast(L("已保存"))); return; }
