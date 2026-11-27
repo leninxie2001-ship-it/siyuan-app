@@ -3939,6 +3939,7 @@ function classForm(c, presetStudent) {
         for (const f of KF) if ((base[f] ?? "") !== (b[f] ?? "")) d[f] = base[f];
         for (const f of ["movedFrom", "movedBy", "movedAt", "moveReason"]) if (c[f]) d[f] = c[f];
         if ([...base.studentIds].sort().join() !== [...b.studentIds].sort().join()) d.studentIds = base.studentIds;
+        if (c.guests?.length && d.studentIds) d.guests = c.guests.filter(id => d.studentIds.includes(id));
         // a session already covered by someone else keeps that mark
         if (c.subFor && d.teacherId && d.teacherId !== b.teacherId) for (const k of ["subFor", "subBy", "subAt"]) if (c[k]) d[k] = c[k];
         if (subT) Object.assign(d, subMark(b.teacherId, subT));
@@ -4393,13 +4394,13 @@ function attForm(c) {
   if (me && c.teacherId !== myTid() && a0.teacherId !== myTid()) return toast(L("这不是你的课"));
   const tidW = a0.teacherId || (me ? myTid() : c.teacherId || ""), future = c.date > today(), loc = locOf(c.locationId), canAdd = !me || c.teacherId === myTid();
   const ph = { photoStart: a0.photoStart || "", photoEnd: a0.photoEnd || "", photoStartAt: a0.photoStartAt || "", photoEndAt: a0.photoEndAt || "" };
-  const ids = [...new Set([...(c.studentIds || []), ...Object.keys(a0.marks || {}).filter(id => stu(id))])];
+  const ids = [...new Set([...(c.studentIds || []), ...Object.keys(a0.marks || {}).filter(id => stu(id))])], guests = new Set(c.guests || []);
   const base = () => ({ teacherId: tidW, sessionId: c.id, courseId: c.courseId || "", date: c.date, start: c.start || "", end: c.end || "", level: c.level || "", title: c.title || "", locationId: c.locationId || "", updatedAt: new Date().toISOString(), updatedBy: S.acct?.id || "" });
   const photoBox = k => { const id = ph[k], lab = k === "photoStart" ? "上课照片" : "下课照片"; return `<div class="attph" data-phbox="${k}" ${future ? "" : 'tabindex="0"'} title="${esc(future ? "" : L("点一下这里，再按 Ctrl+V 粘贴截图"))}"><b>${L(lab)}</b>
     ${id ? `<a href="${blobUrl(id)}" target="_blank" rel="noopener" data-lb="${id}" data-lbcap="${esc(L(lab))}"><img src="${blobUrl(id)}" alt="${esc(L(lab))}"></a><span class="muted" style="font-size:12px">${esc(L("上传于 {0}", fmtTime(ph[k + "At"])))}</span>` : `<div class="attph0">${L(k === "photoStart" ? "上课开始时拍一张全班照片" : "下课时再拍一张")}${future ? "" : `<small class="phpaste">${L("也可以点这里，按 Ctrl+V 粘贴截图")}</small>`}</div>`}
     <label class="btn small ${id ? "" : "primary"}" ${future ? 'aria-disabled="true"' : ""}>${L(id ? "换一张" : "拍照 / 选照片")}<input type="file" accept="image/*" data-ph="${k}" hidden ${future ? "disabled" : ""}></label></div>`; };
   const row = id => { const s = stu(id), m = a0.marks?.[id] || {}; return `<div class="attstu" data-sid="${id}">
-    <span class="row" style="gap:8px;flex-wrap:nowrap;min-width:0">${avatar(s)}<b style="overflow:hidden;text-overflow:ellipsis">${esc(sname(s))}</b></span>
+    <span class="row" style="gap:8px;flex-wrap:nowrap;min-width:0">${avatar(s)}<b style="overflow:hidden;text-overflow:ellipsis">${esc(sname(s))}</b>${guests.has(id) ? `<span class="pill st-试听" title="${esc(L("只上这一节"))}">${L("临时")}</span>` : ""}</span>
     <span class="payseg attseg" role="group">${ATT_ST.map(([k, l]) => `<button type="button" data-st="${k}" aria-pressed="${m.st === k}">${L(l)}</button>`).join("")}</span>
     <input class="atthw" type="number" min="0" step="0.5" inputmode="decimal" value="${esc(m.hw ?? "")}" placeholder="${L("作业分")}" aria-label="${L("作业分")}">
     <input class="attnt" value="${esc(m.note || "")}" placeholder="${L("备注")}" aria-label="${L("备注")}"></div>`; };
@@ -4408,7 +4409,7 @@ function attForm(c) {
     <div class="muted" style="font-size:13.5px"><b style="color:var(--fg)">${esc(cname(c) || L("课程"))}</b> · ${esc(tLabel(c))}${loc ? ` · ${esc(lname(loc))}` : ""}${roomName(c) ? ` · ${esc(roomName(c))}` : ""}</div>
     ${future ? `<div class="banner" style="margin:0">${L("这节课还没到，上课当天才能登记考勤。")}</div>` : ""}
     <div class="attphs" id="attphs">${photoBox("photoStart")}${photoBox("photoEnd")}</div>
-    <div class="panel"><div class="row"><h3>${L("学生考勤和作业")}</h3><span class="muted">${esc(L("{0} 名学生", ids.length))}</span><span class="spacer"></span>${future || !ids.length ? "" : `<button type="button" class="btn small" data-allp>${L("全部到")}</button>`}${canAdd ? `<button type="button" class="btn small" data-saopen>${L("＋ 加学生")}</button>` : ""}</div>
+    <div class="panel"><div class="row"><h3>${L("学生考勤和作业")}</h3><span class="muted">${esc(L("{0} 名学生", ids.length))}</span><span class="spacer"></span>${future || !ids.length ? "" : `<button type="button" class="btn small" data-allp>${L("全部到")}</button>`}${canAdd ? `<button type="button" class="btn small" data-saopen data-samode="tmp">${L("＋ 临时上课")}</button><button type="button" class="btn small" data-saopen data-samode="all">${L("＋ 加进这个班")}</button>` : ""}</div>
       ${canAdd ? stuAdderHtml() : ""}
       <div class="grid2">
         <label class="f">${L("今天的作业")}<input name="hwTitle" value="${esc(a0.hwTitle || "")}" placeholder="${L("例：第 5 课练习册")}"></label>
@@ -4422,11 +4423,15 @@ function attForm(c) {
   </form>`);
   if (me && c.teacherId === myTid() && c.date >= today()) wireRq(el, c);
   if (future) el.querySelectorAll("#attform input:not(.sa):not(.rqin), #attform textarea:not([data-rqr]), #attform [data-st]").forEach(x => x.disabled = true);
+  // 临时上课 puts a student in this one session only; 加进这个班 adds them to every session of the class
+  let mode = "tmp";
+  el.addEventListener("click", e => { const b = e.target.closest("[data-samode]"); if (b) { mode = b.dataset.samode; const q = el.querySelector(".sasearch"); if (q) q.placeholder = L(mode === "tmp" ? "临时上这一节的学生：搜名字、学号或电话" : "加进这个班的学生：搜名字、学号或电话"); el.querySelectorAll("[data-samode]").forEach(x => x.classList.toggle("primary", x === b)); } }, true);
   if (canAdd) wireAdder(el, () => ids, c, async sid => {
-    await setInClass([c], sid, true); ids.push(sid);
+    if (mode === "tmp") { await addGuest(c, sid); guests.add(sid); } else await setInClass([c], sid, true);
+    ids.push(sid);
     const list = $(".attlist", el); if (!list.querySelector(".attstu")) list.innerHTML = "";
     list.insertAdjacentHTML("beforeend", row(sid)); if (future) list.lastElementChild.querySelectorAll("input, [data-st]").forEach(x => x.disabled = true);
-    toast(L("已加进这个班：{0}", sname(stu(sid))));
+    toast(L(mode === "tmp" ? "{0} 临时上这一节" : "已加进这个班：{0}", sname(stu(sid))));
   });
   el.addEventListener("click", e => {
     if (e.target.closest("[data-close]")) closeSheet();
@@ -4476,6 +4481,13 @@ function attForm(c) {
 }
 
 // adding or removing a student changes the whole class for a repeating class (and any session that has its own list), or the one-off class itself
+// a drop-in student for one session: a course session keeps it in its own record, so the class roster stays as it is
+async function addGuest(c, sid) {
+  const now = new Date().toISOString(), by = S.acct?.id || "", d = S.classes.find(x => x.id === c.id);
+  const ids = [...new Set([...(c.studentIds || []), sid])], gs = [...new Set([...(c.guests || []), sid])];
+  if (d) await S.db.collection("classes").doc(c.id).update({ studentIds: ids, guests: gs, updatedAt: now, updatedBy: by });
+  else if (c.courseId) await S.db.collection("classes").doc(c.id).set({ courseId: c.courseId, date: c.date, studentIds: ids, guests: gs, createdAt: now, createdBy: by, updatedAt: now, updatedBy: by });
+}
 async function setInClass(sess, sid, add) {
   const now = new Date().toISOString(), up = list => { const x = new Set(list || []); if (add) x.add(sid); else x.delete(sid); return { studentIds: [...x], updatedAt: now, updatedBy: S.acct?.id || "" }; };
   for (const kid of new Set(sess.map(c => c.courseId).filter(Boolean))) { const k = S.courses.find(x => x.id === kid); if (k) await S.db.collection("courses").doc(kid).update(up(k.studentIds)); }
@@ -4671,6 +4683,7 @@ Object.assign(ES, {"不用考勤": "Sin asistencia", "这个班要考勤": "Este
 Object.assign(ES, {"老师的课表跟着这个班走：改了时间、老师、名称，或者删除这个班，保存后老师课表里也会一起改。": "El horario del profesor sigue a este grupo: si cambias el horario, el profesor o el nombre, o eliminas el grupo, al guardar también cambia en su horario.", "删除班级“{0}”？老师课表里这个班的时间也会去掉。": "¿Eliminar el grupo «{0}»? También se quitará su horario del profesor.", "{0} 由 {1} 代课": "{0} la da {1}"});
 Object.assign(ES, {"外聘老师课程表": "Horario de docentes externos", "思源老师": "Docentes Siyuan", "转成系统里的班": "Convertir en grupo del sistema", "转成系统里的班（{0} 个）": "Convertir en grupos del sistema ({0})", "把“{0}”的 {1} 个班转成系统里的班：老师、学生、上课时间都带过去，以后考勤、成绩、课表、代课都和思源的班一样。": "Convertir los {1} grupos de «{0}» en grupos del sistema: pasan el profesor, los estudiantes y el horario, y desde ahí la asistencia, las notas, el horario y los reemplazos funcionan como en cualquier grupo de Siyuan.", "已转好 {0} 个班": "{0} grupos convertidos", "转了以后考勤、成绩、课表、代课都和思源的班一样": "Después, la asistencia, las notas, el horario y los reemplazos funcionan como en los grupos de Siyuan", "把“{0}”转成系统里的班？老师、学生、上课时间都带过去。没保存的修改请先保存。": "¿Convertir «{0}» en grupo del sistema? Pasan el profesor, los estudiantes y el horario. Guarda antes los cambios pendientes."});
 Object.assign(ES, {"上课日历": "Calendario de clases", "我的上课日历": "Mi calendario de clases", "这个月有 {0} 天要上课": "{0} días con clases este mes", "要上课": "Con clases", "别人代课": "Lo reemplazan", "代": "Reempl.", "没颜色的日子不用上课。点一天看那天的课。": "Los días sin color no hay clases. Toca un día para ver sus clases.", "这天不用上课": "Este día no hay clases", "这天的课都换成": "Todas las clases de este día las da", "本月": "Este mes"});
+Object.assign(ES, {"＋ 临时上课": "＋ Clase suelta", "＋ 加进这个班": "＋ Añadir al grupo", "只上这一节": "Solo esta clase", "临时": "Suelta", "临时上这一节的学生：搜名字、学号或电话": "Estudiante solo para esta clase: busca nombre, código o teléfono", "加进这个班的学生：搜名字、学号或电话": "Estudiante para todo el grupo: busca nombre, código o teléfono", "{0} 临时上这一节": "{0} toma solo esta clase"});
 Object.assign(ES, {"外聘": "Externo", "外聘老师": "Profesores externos"});
 Object.assign(ES, {"结束日期不能早于开始日期": "La fecha de fin no puede ser anterior a la de inicio"});
 Object.assign(ES, {"网络较慢，付款记录还在同步，现在看到的可能不完整。": "La conexión va lenta: los pagos aún se están sincronizando y la lista puede estar incompleta.", "首页": "Inicio", "教学安排": "Clases", "老师管理": "Profesores", "财务": "Finanzas", "行政": "Administración"});
