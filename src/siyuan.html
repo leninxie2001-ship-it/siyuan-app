@@ -284,6 +284,10 @@ label.f[hidden], .grid2[hidden], .panel[hidden], .row[hidden] { display: none }
 .cd.hol { color: var(--seal); background: var(--seal-soft); text-decoration: line-through }
 .cd.hol.on { background: var(--seal); color: #fff; text-decoration: none }
 .cd.holopen { box-shadow: inset 0 -2px 0 var(--seal) }
+.tcalg { gap: 3px } .tcd { display: grid; gap: 0; padding: 4px 0; min-height: 44px; align-content: start; border-color: var(--line) }
+.tcd b { font-weight: 600 } .tcd small { font-size: 10.5px; min-height: 1.2em }
+.tcd.tcv { background: var(--amber-soft); color: var(--amber) } .tcd.tdy { box-shadow: inset 0 0 0 2px var(--fg) } .tcd.sel { outline: 2px solid var(--accent); outline-offset: 1px }
+.lg { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px } .lg-on { background: var(--accent) } .lg-cv { background: var(--amber-soft); border: 1px solid var(--amber) } .lg-hol { background: var(--seal-soft); border: 1px solid var(--seal) }
 .cd.out:not(.on) { opacity: .45 } .cd:disabled { opacity: .25; cursor: default }
 .holname { display: block; color: var(--seal); font-size: 11.5px; font-weight: 500 } .holname.open { color: var(--muted) }
 .pill.holpill { background: var(--seal-soft); color: var(--seal) }
@@ -4293,6 +4297,41 @@ function myDay(tid, d) {
     ...os.map(o => ({ start: o.start, h: o.teacherId === tid ? `<div class="cls" style="cursor:default"><span class="t">${esc(o.start)}–${esc(o.end)} · ${esc(slotName(o.s))}</span><span class="s"><span class="pill">${esc(L(TSK[o.kind] || "其他课程"))}</span>${o.cover ? ` <span class="pill st-待排课">${esc(L("替 {0} 代课", tdisp(tch(o.cover)) || "?"))}</span>` : ""}</span></div>` : lostCard(o.start, o.end, slotName(o.s), o.teacherId) }))];
   return it.sort((a, b) => a.start.localeCompare(b.start)).map(x => x.h).join("");
 }
+// a month of one teacher's lessons: which days they teach, which someone else covers, which are days off; a day opens its lessons.
+// The office can hand a whole day to a substitute from here.
+const TCAL = {};
+function tCalHtml(tid, mgr) {
+  const st = TCAL[tid] || (TCAL[tid] = { m: today().slice(0, 7), d: today() }), m = st.m, d1 = m + "-01", nxt = addDays(d1, 32).slice(0, 7), last = addDays(nxt + "-01", -1);
+  const own = new Map(), lost = new Map(), bump = (map, d) => map.set(d, (map.get(d) || 0) + 1);
+  for (const l of lessonsOf(tid, d1, last)) bump(own, l.date);
+  for (const c of CL()) if (c.date >= d1 && c.date <= last && subOf(c) === tid) bump(lost, c.date);
+  for (const o of slotOcc()) if (o.date >= d1 && o.date <= last && o.tid === tid && o.teacherId !== tid) bump(lost, o.date);
+  const lead = (parseD(d1).getDay() + 6) % 7, n = daysBetween(d1, nxt + "-01"), t = today();
+  let cells = "<span></span>".repeat(lead), days = 0;
+  for (let i = 0; i < n; i++) { const d = addDays(d1, i), h = holidayOn(d), a = own.get(d) || 0, b = lost.get(d) || 0; if (a) days++;
+    cells += `<button type="button" class="cd tcd${a ? " on" : b ? " tcv" : ""}${h ? h.off ? " hol" : " holopen" : ""}${d === t ? " tdy" : ""}${d === st.d ? " sel" : ""}" data-tcd="${d}" title="${esc(h ? h.name : "")}"><b>${+d.slice(8)}</b><small>${a ? esc(L("{0} 节", a)) : b ? esc(L("代")) : h?.off ? esc(L("放假")) : ""}</small></button>`; }
+  const dl = st.d && st.d.startsWith(m) ? st.d : "", list = dl ? myDay(tid, dl) : "";
+  const subs = mgr && dl ? svLessons(tid, dl, dl) : [], others = mgr ? S.teachers.filter(x => x.id !== tid && tStatus(x) === "在职").sort(byName) : [];
+  return `<div class="panel tcal" data-tcal="${esc(tid)}" ${mgr ? 'data-mgr="1"' : ""}>
+    <div class="row"><h3>${L(mgr ? "上课日历" : "我的上课日历")}</h3><span class="muted" style="font-size:12.5px">${esc(L("这个月有 {0} 天要上课", days))}</span>
+      <span class="row" style="gap:4px;flex-wrap:nowrap;margin-left:auto"><button type="button" class="btn small" data-tcm="-1" aria-label="${L("上个月")}">‹</button><b style="min-width:6.5em;text-align:center;white-space:nowrap">${esc(monthLabel(m))}</b><button type="button" class="btn small" data-tcm="1" aria-label="${L("下个月")}">›</button>${m !== t.slice(0, 7) ? `<button type="button" class="btn small" data-tcm="0">${L("本月")}</button>` : ""}</span></div>
+    <div class="calg tcalg">${WDN.map(x => `<span class="wh">${L(x)}</span>`).join("")}${cells}</div>
+    <div class="row tlegend" style="gap:6px 12px;font-size:12px"><span><i class="lg lg-on"></i>${L("要上课")}</span><span><i class="lg lg-cv"></i>${L("别人代课")}</span><span><i class="lg lg-hol"></i>${L("放假")}</span><span class="muted">${L("没颜色的日子不用上课。点一天看那天的课。")}</span></div>
+    ${dl ? `<div style="display:grid;gap:6px"><b>${esc(dl)} ${esc(wd(dl))}${holidayOn(dl) ? ` · ${esc(holidayOn(dl).name)}` : ""}</b><div class="clslist">${(mgr ? list.replace(/data-att=/g, "data-patt=") : list) || `<span class="muted">${L("这天不用上课")}</span>`}</div>
+      ${mgr && subs.length ? `<div class="row" style="gap:8px"><span class="muted" style="font-size:12.5px">${L("这天的课都换成")}</span><select data-tcsubt style="width:auto"><option value="${esc(tid)}">${esc(L("{0}（原老师）", tdisp(tch(tid))))}</option>${others.map(x => `<option value="${x.id}">${esc(tboth(x))}</option>`).join("")}</select><button type="button" class="btn small primary" data-tcsub>${L("保存代课")}</button></div>` : ""}</div>` : ""}
+  </div>`;
+}
+function tCalClick(t) {
+  const box = t.closest("[data-tcal]"); if (!box) return false;
+  const tid = box.dataset.tcal, mgr = !!box.dataset.mgr, st = TCAL[tid] || (TCAL[tid] = { m: today().slice(0, 7), d: today() }), redraw = () => { box.outerHTML = tCalHtml(tid, mgr); };
+  const mv = t.closest("[data-tcm]"); if (mv) { const k = +mv.dataset.tcm; st.m = k ? addDays(st.m + "-15", k * 30).slice(0, 7) : today().slice(0, 7); st.d = st.m === today().slice(0, 7) ? today() : st.m + "-01"; redraw(); return true; }
+  const dd = t.closest("[data-tcd]"); if (dd) { st.d = dd.dataset.tcd; redraw(); return true; }
+  const sv = t.closest("[data-tcsub]"); if (sv) {
+    const nt = box.querySelector("[data-tcsubt]").value; sv.disabled = true;
+    (async () => { let n = 0; for (const l of svLessons(tid, st.d, st.d)) { if (l.by === nt) continue; await l.set(nt); n++; } toast(n ? (nt === tid ? L("已取消 {0} 节代课", n) : L("已安排 {0} 节代课", n)) : L("没有改动")); setTimeout(() => { const b = document.querySelector(`[data-tcal="${tid}"]`); if (b) b.outerHTML = tCalHtml(tid, mgr); }, 400); })().catch(err => { sv.disabled = false; toast(L("保存失败：{0}", err?.message || err?.code || err)); });
+    return true; }
+  return false;
+}
 const lostCard = (a, b, name, by) => `<div class="cls" style="cursor:default;opacity:.65"><span class="t" style="text-decoration:line-through">${esc(a || "")}–${esc(b || "")} · ${esc(name)}</span><span class="s"><span class="pill st-待排课">${esc(L("由 {0} 代课", tdisp(tch(by)) || "?"))}</span></span></div>`;
 function viewMy() {
   const tid = myTid(); if (!tid) return `<div class="banner">${L("这个老师账号还没有连到老师名单，请联系总管理员。")}</div>`;
@@ -4306,6 +4345,7 @@ function viewMy() {
     <div class="clslist">${myDay(tid, t) || `<span class="muted">${L("今天没有课")}</span>`}</div>
     <p class="muted" style="margin:0;font-size:12.5px">${L("点一节课就能登记考勤：上课时拍一张照片，下课时再拍一张，再给每个学生点到、填作业分。")}</p>
   </section>
+  ${tCalHtml(tid, false)}
   <section class="panel">
     <div class="row"><h2>${L("我的课表")}</h2><span class="muted">${L("{0} 至 {1}", days[0], days[6])}</span><span class="spacer"></span>
       <button class="btn" data-week="-7">${L("‹ 上周")}</button><button class="btn" data-week="0">${L("本周")}</button><button class="btn" data-week="7">${L("下周 ›")}</button><button class="btn primary" data-tnewcls>${L("＋ 给自己排课")}</button></div>
@@ -4630,6 +4670,7 @@ Object.assign(ES, {"老师请假：勾选要代的课（可以多选，思源的
 Object.assign(ES, {"不用考勤": "Sin asistencia", "这个班要考勤": "Este grupo lleva asistencia", "不勾的话，老师不用给这个班拍照点到，也不会提醒没填考勤。": "Si no se marca, el profesor no toma fotos ni pasa lista en este grupo, y no habrá avisos de asistencia pendiente."});
 Object.assign(ES, {"老师的课表跟着这个班走：改了时间、老师、名称，或者删除这个班，保存后老师课表里也会一起改。": "El horario del profesor sigue a este grupo: si cambias el horario, el profesor o el nombre, o eliminas el grupo, al guardar también cambia en su horario.", "删除班级“{0}”？老师课表里这个班的时间也会去掉。": "¿Eliminar el grupo «{0}»? También se quitará su horario del profesor.", "{0} 由 {1} 代课": "{0} la da {1}"});
 Object.assign(ES, {"外聘老师课程表": "Horario de docentes externos", "思源老师": "Docentes Siyuan", "转成系统里的班": "Convertir en grupo del sistema", "转成系统里的班（{0} 个）": "Convertir en grupos del sistema ({0})", "把“{0}”的 {1} 个班转成系统里的班：老师、学生、上课时间都带过去，以后考勤、成绩、课表、代课都和思源的班一样。": "Convertir los {1} grupos de «{0}» en grupos del sistema: pasan el profesor, los estudiantes y el horario, y desde ahí la asistencia, las notas, el horario y los reemplazos funcionan como en cualquier grupo de Siyuan.", "已转好 {0} 个班": "{0} grupos convertidos", "转了以后考勤、成绩、课表、代课都和思源的班一样": "Después, la asistencia, las notas, el horario y los reemplazos funcionan como en los grupos de Siyuan", "把“{0}”转成系统里的班？老师、学生、上课时间都带过去。没保存的修改请先保存。": "¿Convertir «{0}» en grupo del sistema? Pasan el profesor, los estudiantes y el horario. Guarda antes los cambios pendientes."});
+Object.assign(ES, {"上课日历": "Calendario de clases", "我的上课日历": "Mi calendario de clases", "这个月有 {0} 天要上课": "{0} días con clases este mes", "要上课": "Con clases", "别人代课": "Lo reemplazan", "代": "Reempl.", "没颜色的日子不用上课。点一天看那天的课。": "Los días sin color no hay clases. Toca un día para ver sus clases.", "这天不用上课": "Este día no hay clases", "这天的课都换成": "Todas las clases de este día las da", "本月": "Este mes"});
 Object.assign(ES, {"外聘": "Externo", "外聘老师": "Profesores externos"});
 Object.assign(ES, {"结束日期不能早于开始日期": "La fecha de fin no puede ser anterior a la de inicio"});
 Object.assign(ES, {"网络较慢，付款记录还在同步，现在看到的可能不完整。": "La conexión va lenta: los pagos aún se están sincronizando y la lista puede estar incompleta.", "首页": "Inicio", "教学安排": "Clases", "老师管理": "Profesores", "财务": "Finanzas", "行政": "Administración"});
@@ -4682,6 +4723,7 @@ function teacherPage(x) {
         ${x.phone || x.wechat || x.email ? "" : `<span class="muted" style="grid-column:1/-1">${L("还没有填联系方式")}</span>`}</div></div>
       <div class="panel"><h3>${L("老师介绍")}</h3>${x.bio ? `<p style="margin:0;white-space:pre-wrap">${esc(x.bio)}</p>` : `<span class="muted">${L("还没有写介绍，点“编辑资料”可以加。")}</span>`}</div>
     </div>
+    ${tCalHtml(x.id, true)}
     <div class="panel"><div class="row"><h3>${L("现在的课")}</h3><span class="muted">${esc(L("{0} 个班", on.length))} · ${esc(L("本周 {0} 小时", fmtH(tWeekHrs(x.id, ws))))} · ${esc(L("最近 30 天考勤完成 {0} / {1} 节", done, past.length))}</span></div>
       ${on.length ? `<div class="tablewrap"><table><thead><tr><th>${L("班级")}</th><th>${L("上课时间")}</th><th>${L("教学点")}</th><th>${L("学生")}</th><th>${L("已上")}</th></tr></thead><tbody>${on.map(g => `<tr class="click" data-pgrade="${esc(g.id)}"><td class="nm"><b>${esc(g.label)}</b></td><td>${esc(g.when)}</td><td>${esc(lname(locOf(g.first.locationId)) || "—")}${roomName(g.first) ? ` · ${esc(roomName(g.first))}` : ""}</td><td>${g.sids.size}</td><td>${esc(L("{0} / {1} 节", g.done, g.sess.length))}</td></tr>`).join("")}</tbody></table></div>` : `<span class="muted">${L("现在没有在上的班")}</span>`}
       <h3>${L("本周")}</h3><div class="clslist">${wk.map(c => `<div class="row" style="gap:8px;flex-wrap:nowrap"><span class="muted" style="width:5.5em;flex:none">${esc(wd(c.date))} ${esc(c.date.slice(5))}</span><div style="flex:1;min-width:0">${tSessCard(c).replace("data-att=", "data-patt=")}</div></div>`).join("") || `<span class="muted">—</span>`}</div></div>
@@ -5068,6 +5110,7 @@ document.addEventListener("click", e => {
   const t = e.target;
   if (noPay() && t.closest("[data-newpay],[data-locpay],[data-pay],[data-fampay],[data-act=backup],[data-act=owef]")) return;
   const vw = t.closest("[data-lb]"); if (vw && !e.ctrlKey && !e.metaKey && !e.shiftKey) { e.preventDefault(); openViewer(vw); return; }
+  if (tCalClick(t)) return;
   if (!t.closest(".sheet") && tPortalClick(t)) return;
   const lg = t.closest("[data-lang]"); if (lg) { S.lang = lg.dataset.lang; try { localStorage.setItem("sy-lang", S.lang); } catch { } const open = sheetEl && S.openId; render(); if (open) openStudent(S.openId); else closeSheet(); return; }
   const tab = t.closest("[data-tab]"); if (tab) { S.tab = tab.dataset.tab; try { localStorage.setItem("sy-tab", S.tab); } catch { } render(); return; }
